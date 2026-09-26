@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../database/connection.js';
 import { FareEngine } from './FareEngine.js';
 import { areRoutesCompatible, getZoneDistance, DHAKA_ZONES } from '../config/zones.js';
+import { wsService } from './WebSocketService.js';
 
 export class CapacityExceededError extends Error {
   constructor(message = 'Capacity Exceeded: Not enough seats available in this Dhaka Tesla') {
@@ -243,7 +244,9 @@ export class PoolingService {
     });
 
     executeBooking();
-    return this.getRideById(rideId)!;
+    const result = this.getRideById(rideId)!;
+    wsService.broadcast({ type: 'RIDE_UPDATED', payload: result });
+    return result;
   }
 
   /**
@@ -332,7 +335,9 @@ export class PoolingService {
     });
 
     acceptTransaction();
-    return this.getRideById(rideRequestId)!;
+    const result = this.getRideById(rideRequestId)!;
+    wsService.broadcast({ type: 'RIDE_UPDATED', payload: result });
+    return result;
   }
 
   /**
@@ -364,7 +369,9 @@ export class PoolingService {
       VALUES (?, 'RIDE_REQUEST', ?, 'DRIVER_ARRIVED', ?, ?)
     `).run(uuidv4(), rideRequestId, driverId, JSON.stringify({ timestamp: new Date().toISOString() }));
 
-    return this.getRideById(rideRequestId)!;
+    const result = this.getRideById(rideRequestId)!;
+    wsService.broadcast({ type: 'RIDE_UPDATED', payload: result });
+    return result;
   }
 
   /**
@@ -404,7 +411,9 @@ export class PoolingService {
       `).run(uuidv4(), rideRequestId, driverId, JSON.stringify({ timestamp: new Date().toISOString() }));
     })();
 
-    return this.getRideById(rideRequestId)!;
+    const result = this.getRideById(rideRequestId)!;
+    wsService.broadcast({ type: 'RIDE_UPDATED', payload: result });
+    return result;
   }
 
   /**
@@ -478,7 +487,9 @@ export class PoolingService {
       `).run(uuidv4(), rideRequestId, driverId, JSON.stringify({ fareCollectedPoysha: ride.final_fare_poysha, paymentMethod: ride.payment_method }));
     })();
 
-    return this.getRideById(rideRequestId)!;
+    const result = this.getRideById(rideRequestId)!;
+    wsService.broadcast({ type: 'RIDE_UPDATED', payload: result });
+    return result;
   }
 
   /**
@@ -542,7 +553,9 @@ export class PoolingService {
       `).run(uuidv4(), rideRequestId, userId, JSON.stringify({ reason }));
     })();
 
-    return this.getRideById(rideRequestId)!;
+    const result = this.getRideById(rideRequestId)!;
+    wsService.broadcast({ type: 'RIDE_UPDATED', payload: result });
+    return result;
   }
 
   /**
