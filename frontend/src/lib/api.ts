@@ -59,6 +59,21 @@ export class ApiService {
     return data;
   }
 
+  public static async register(payload: {
+    name: string;
+    phone: string;
+    email: string;
+    password: string;
+    role: 'PASSENGER' | 'DRIVER';
+  }): Promise<{ user: User; token: string }> {
+    const data = await this.request<{ user: User; token: string }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    this.setToken(data.token);
+    return data;
+  }
+
   public static async getMe(): Promise<User> {
     const data = await this.request<{ user: User }>('/auth/me');
     return data.user;

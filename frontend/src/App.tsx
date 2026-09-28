@@ -9,6 +9,7 @@ import { PassengerView } from './components/PassengerView';
 import { DriverView } from './components/DriverView';
 import { LiveScenarioSimulation } from './components/LiveScenarioSimulation';
 import { TopupModal } from './components/TopupModal';
+import { AuthModal } from './components/AuthModal';
 import { BulletSeatHUD } from './components/BulletSeatHUD';
 import { Zap, ShieldCheck, Heart, Radio, MapPin, ArrowRight } from 'lucide-react';
 
@@ -70,6 +71,7 @@ export default function App() {
   const [zones, setZones] = useState<DhakaZone[]>(DEFAULT_ZONES);
   const [activeTab, setActiveTab] = useState<'HOME' | 'PASSENGER' | 'DRIVER' | 'SIMULATION'>('HOME');
   const [isTopupOpen, setIsTopupOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isWsConnected, setIsWsConnected] = useState(false);
   const [activeRides, setActiveRides] = useState<RideRequest[]>([]);
   const [activePool, setActivePool] = useState<ActivePool | null>(null);
@@ -152,6 +154,22 @@ export default function App() {
     refreshData();
   };
 
+  const handleAuthSuccess = (user: User) => {
+    setDemoUsers((prev) => {
+      const exists = prev.some((u) => u.id === user.id);
+      if (exists) {
+        return prev.map((u) => (u.id === user.id ? user : u));
+      }
+      return [user, ...prev];
+    });
+    handleSelectUser(user);
+    if (user.role === 'DRIVER') {
+      setActiveTab('DRIVER');
+    } else {
+      setActiveTab('PASSENGER');
+    }
+  };
+
   // Role-aware tab switcher: auto-switches user to match the chosen portal
   const handleSelectTab = (tab: 'HOME' | 'PASSENGER' | 'DRIVER' | 'SIMULATION', overrideUser?: User) => {
     setActiveTab(tab);
@@ -213,6 +231,7 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
         onTopup={() => setIsTopupOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
         isWsConnected={isWsConnected}
       />
 
@@ -394,6 +413,13 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* AUTH MODAL (SIGN IN / SIGN UP) */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
 
       {/* TOP-UP MODAL */}
       <TopupModal

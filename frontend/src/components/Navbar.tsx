@@ -1,6 +1,6 @@
 import React from 'react';
 import { User } from '../types';
-import { Zap, Wallet, Users, Radio, Car, ArrowUpRight, Compass, ShieldCheck } from 'lucide-react';
+import { Zap, Wallet, Users, Radio, Car, ArrowUpRight, Compass, ShieldCheck, UserCircle } from 'lucide-react';
 
 interface NavbarProps {
   currentUser: User | null;
@@ -9,6 +9,7 @@ interface NavbarProps {
   activeTab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME';
   onSelectTab: (tab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME', overrideUser?: User) => void;
   onTopup: () => void;
+  onOpenAuth: () => void;
   isWsConnected: boolean;
 }
 
@@ -19,6 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
   onTopup,
+  onOpenAuth,
   isWsConnected
 }) => {
   return (
@@ -89,10 +91,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* Story Cast Switcher & TeslaPay Wallet Pill */}
+        {/* Story Cast Switcher, Auth Trigger & TeslaPay Wallet Pill */}
         <div className="flex items-center gap-2">
           {/* Quick Persona Pills */}
-          <div className="flex items-center gap-1 bg-black/50 border border-white/5 p-1 rounded-full">
+          <div className="hidden lg:flex items-center gap-1 bg-black/50 border border-white/5 p-1 rounded-full">
             {demoUsers.map((u) => {
               const isSelected = currentUser?.id === u.id;
               const firstName = u.name.split(' ')[0];
@@ -106,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     if (isDriver) onSelectTab('DRIVER', u);
                     else onSelectTab('PASSENGER', u);
                   }}
-                  title={`${u.name} (${u.role})`}
+                  title={`${u.name} (${u.role}) - Quick Cast`}
                   className={`px-3 py-1 text-xs rounded-full font-semibold transition-colors flex items-center gap-1 shrink-0 ${
                     isSelected
                       ? isDriver
@@ -121,6 +123,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               );
             })}
           </div>
+
+          {/* Interactive Sign In / Register Modal Trigger */}
+          <button
+            onClick={onOpenAuth}
+            className="bg-white/10 hover:bg-white/15 active:scale-95 text-white border border-white/10 font-bold text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all shadow-sm"
+            title="Sign in or register a new Passenger or Driver"
+          >
+            <UserCircle className="w-3.5 h-3.5 text-[#D2F832]" />
+            <span className="hidden sm:inline">Sign In / Register</span>
+            <span className="sm:hidden">Auth</span>
+          </button>
 
           {/* TeslaPay Wallet Button (Electric Lime Pill like 'Google Play' button in reference) */}
           {currentUser && (
