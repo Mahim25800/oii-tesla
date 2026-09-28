@@ -419,6 +419,10 @@ export default function App() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onAuthSuccess={handleAuthSuccess}
+        currentUser={currentUser}
+        onSignOut={() => {
+          setIsAuthOpen(true);
+        }}
       />
 
       {/* TOP-UP MODAL */}

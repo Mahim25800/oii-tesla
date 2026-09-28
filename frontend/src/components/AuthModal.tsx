@@ -8,6 +8,8 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthSuccess: (user: User) => void;
+  currentUser?: User | null;
+  onSignOut?: () => void;
   initialMode?: 'SIGN_IN' | 'SIGN_UP';
   initialRole?: 'PASSENGER' | 'DRIVER';
 }
@@ -16,6 +18,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   onAuthSuccess,
+  currentUser,
+  onSignOut,
   initialMode = 'SIGN_IN',
   initialRole = 'PASSENGER'
 }) => {
@@ -152,6 +156,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Currently Active User Bar with Sign Out */}
+        {currentUser && (
+          <div className="mb-5 p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                currentUser.role === 'DRIVER'
+                  ? 'bg-[#D2F832] text-black shadow-sm'
+                  : 'bg-white/20 text-white'
+              }`}>
+                {currentUser.role === 'DRIVER' ? <Car className="w-3.5 h-3.5" /> : <UserIcon className="w-3.5 h-3.5" />}
+              </div>
+              <div>
+                <span className="text-xs font-bold text-white block leading-tight">{currentUser.name}</span>
+                <span className="text-[10px] text-zinc-400 font-mono">
+                  {currentUser.role} • ৳{currentUser.wallet_bdt.toFixed(0)}
+                </span>
+              </div>
+            </div>
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSignOut();
+                  onClose();
+                }}
+                className="text-[11px] font-mono text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors border border-rose-500/20"
+              >
+                Sign Out
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Mode Toggle Tabs */}
         <div className="flex bg-black/40 border border-white/10 p-1 rounded-2xl mb-6">
