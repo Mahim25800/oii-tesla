@@ -10,7 +10,7 @@ export class DriverController {
         return;
       }
 
-      const active = PoolingService.getDriverActivePool(req.user.id);
+      const active = PoolingService.getDriverActivePool(req.user.id, req.user.role);
       res.json({ activePool: active });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

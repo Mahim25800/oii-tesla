@@ -658,18 +658,46 @@ export class PoolingService {
   }
 
   /**
-   * Driver dashboard: retrieves all current pool assignments and pending requests
+   * Driver and Passenger dashboard: retrieves current active pool assignment or corridor pool
    */
-  public static getDriverActivePool(driverId: string) {
+  public static getDriverActivePool(userId: string, role?: string) {
     const db = getDatabase();
-    const pool = db.prepare(`
-      SELECT p.*, v.name as vehicle_name, v.license_plate, v.battery_percent
-      FROM pools p
-      JOIN vehicles v ON v.id = p.vehicle_id
-      WHERE p.driver_id = ? AND p.status IN ('FORMING', 'ACTIVE')
-      ORDER BY p.created_at DESC
-      LIMIT 1
-    `).get(driverId) as any;
+    let pool: any = null;
+
+    if (role === 'DRIVER') {
+      pool = db.prepare(`
+        SELECT p.*, v.name as vehicle_name, v.license_plate, v.battery_percent
+        FROM pools p
+        JOIN vehicles v ON v.id = p.vehicle_id
+        WHERE p.driver_id = ? AND p.status IN ('FORMING', 'ACTIVE')
+        ORDER BY p.created_at DESC
+        LIMIT 1
+      `).get(userId) as any;
+    } else {
+      // 1. Check if user is a passenger currently assigned to an active pool
+      pool = db.prepare(`
+        SELECT p.*, v.name as vehicle_name, v.license_plate, v.battery_percent
+        FROM pools p
+        JOIN vehicles v ON v.id = p.vehicle_id
+        JOIN pool_memberships pm ON pm.pool_id = p.id
+        JOIN ride_requests r ON r.id = pm.ride_request_id
+        WHERE r.passenger_id = ? AND pm.status = 'ACTIVE' AND p.status IN ('FORMING', 'ACTIVE')
+        ORDER BY p.created_at DESC
+        LIMIT 1
+      `).get(userId) as any;
+
+      // 2. If passenger is not yet pooled, find the active corridor Bullet pool so HUD shows live vehicle telemetry
+      if (!pool) {
+        pool = db.prepare(`
+          SELECT p.*, v.name as vehicle_name, v.license_plate, v.battery_percent
+          FROM pools p
+          JOIN vehicles v ON v.id = p.vehicle_id
+          WHERE p.status IN ('FORMING', 'ACTIVE')
+          ORDER BY p.created_at DESC
+          LIMIT 1
+        `).get() as any;
+      }
+    }
 
     if (!pool) return null;
 
