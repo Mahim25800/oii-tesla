@@ -103,7 +103,11 @@ export default function App() {
   // WebSocket Connection for real-time live push updates
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Connect directly to backend port 5000 in dev mode to eliminate Vite proxy socket churn
+    const wsHost = window.location.port === '3000'
+      ? `${window.location.hostname}:5000`
+      : window.location.host;
+    const wsUrl = `${protocol}//${wsHost}/ws`;
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
 
