@@ -91,6 +91,19 @@ export default function App() {
         if (zonesList && zonesList.length > 0) {
           setZones(zonesList);
         }
+
+        const savedToken = ApiService.getToken();
+        if (savedToken) {
+          try {
+            const me = await ApiService.getMe();
+            if (me) {
+              const fullUser: User = { ...me, token: savedToken };
+              setCurrentUser(fullUser);
+            }
+          } catch {
+            ApiService.setToken(null);
+          }
+        }
       } catch (err) {
         console.warn('Initial data fetch fallback active:', err);
       }
@@ -145,11 +158,18 @@ export default function App() {
   }, []);
 
   const handleSelectUser = (user: User | null) => {
-    setCurrentUser(user);
-    ApiService.setToken(user?.token || null);
-    if (user) {
-      refreshData();
+    if (!user) {
+      setCurrentUser(null);
+      ApiService.setToken(null);
+      return;
     }
+    const token = user.token || ApiService.getToken();
+    const userWithToken: User = { ...user, token: token || undefined };
+    setCurrentUser(userWithToken);
+    if (token) {
+      ApiService.setToken(token);
+    }
+    refreshData();
   };
 
   const handleAuthSuccess = (user: User) => {
@@ -188,9 +208,16 @@ export default function App() {
       ]);
       setActivePool(pool);
       if (currentUser) {
-        const updated = users.find(u => u.id === currentUser.id);
-        if (updated && (updated.wallet_bdt !== currentUser.wallet_bdt || updated.token !== currentUser.token)) {
-          setCurrentUser(updated);
+        try {
+          const me = await ApiService.getMe();
+          if (me) {
+            setCurrentUser(prev => prev ? { ...prev, ...me, token: prev.token || ApiService.getToken() || undefined } : null);
+          }
+        } catch {
+          const updated = users.find(u => u.id === currentUser.id);
+          if (updated) {
+            setCurrentUser(prev => prev ? { ...prev, ...updated, token: prev.token || updated.token } : updated);
+          }
         }
       }
     } catch (err) {

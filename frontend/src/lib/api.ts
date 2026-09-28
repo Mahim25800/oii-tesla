@@ -121,6 +121,7 @@ export class ApiService {
         method: 'POST',
         body: JSON.stringify({ identifier, password })
       });
+      data.user.token = data.token;
       this.setToken(data.token);
       return data;
     } catch (err: any) {
@@ -131,7 +132,7 @@ export class ApiService {
       if (match) {
         const token = match.token || `jwt-${match.id}`;
         this.setToken(token);
-        return { user: match, token };
+        return { user: { ...match, token }, token };
       }
       throw err;
     }
@@ -149,6 +150,7 @@ export class ApiService {
         method: 'POST',
         body: JSON.stringify(payload)
       });
+      data.user.token = data.token;
       this.setToken(data.token);
       return data;
     } catch (err: any) {

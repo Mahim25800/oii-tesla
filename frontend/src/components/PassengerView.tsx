@@ -151,6 +151,11 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
 
   // Load active ride & history
   const loadPassengerData = async () => {
+    if (!ApiService.getToken() && currentUser?.token) {
+      ApiService.setToken(currentUser.token);
+    }
+    if (!ApiService.getToken()) return;
+
     try {
       const history = await ApiService.getMyHistory();
       setMyHistory(history);
@@ -175,6 +180,10 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
     if (pickupZone === destinationZone) {
       setMessage('Pickup and destination must be different zones.');
       return;
+    }
+
+    if (currentUser?.token && !ApiService.getToken()) {
+      ApiService.setToken(currentUser.token);
     }
 
     setLoading(true);

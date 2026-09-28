@@ -72,7 +72,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       confetti({ particleCount: 60, spread: 55, origin: { y: 0.6 } });
       setSuccessMsg(`Welcome back, ${res.user.name}!`);
       setTimeout(() => {
-        onAuthSuccess(res.user);
+        onAuthSuccess({ ...res.user, token: res.token });
         onClose();
         resetForm();
       }, 700);
@@ -109,7 +109,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
       setSuccessMsg(`Account created successfully as ${role}!`);
       setTimeout(() => {
-        onAuthSuccess(res.user);
+        onAuthSuccess({ ...res.user, token: res.token });
         onClose();
         resetForm();
       }, 700);

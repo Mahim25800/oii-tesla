@@ -32,6 +32,11 @@ export const DriverView: React.FC<DriverViewProps> = ({ currentUser, onRefreshUs
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const loadDriverData = async () => {
+    if (!ApiService.getToken() && currentUser?.token) {
+      ApiService.setToken(currentUser.token);
+    }
+    if (!ApiService.getToken()) return;
+
     try {
       const [pool, pending, history] = await Promise.all([
         ApiService.getDriverActivePool(),
