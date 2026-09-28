@@ -117,7 +117,7 @@ export const BentoShowcase: React.FC<BentoShowcaseProps> = ({
             </p>
           </div>
           <div className="pt-6 border-t border-white/10 flex items-center justify-between text-xs font-mono">
-            <span className="text-zinc-500">PRD Section 3</span>
+            <span className="text-zinc-500">Hardware Safety</span>
             <span className="text-[#D2F832] font-bold">C = 3 Invariant</span>
           </div>
         </div>
@@ -136,7 +136,7 @@ export const BentoShowcase: React.FC<BentoShowcaseProps> = ({
             </p>
           </div>
           <div className="pt-6 border-t border-white/10 flex items-center justify-between text-xs font-mono">
-            <span className="text-zinc-500">PRD Section 5</span>
+            <span className="text-zinc-500">Zero Decimal Drift</span>
             <span className="text-white font-bold">Integer Math</span>
           </div>
         </div>
@@ -155,7 +155,7 @@ export const BentoShowcase: React.FC<BentoShowcaseProps> = ({
             </p>
           </div>
           <div className="pt-6 border-t border-white/10 flex items-center justify-between text-xs font-mono">
-            <span className="text-zinc-500">PRD Section 12</span>
+            <span className="text-zinc-500">Atomic Isolation</span>
             <span className="text-[#D2F832] font-bold">15/15 Tests Passed</span>
           </div>
         </div>
