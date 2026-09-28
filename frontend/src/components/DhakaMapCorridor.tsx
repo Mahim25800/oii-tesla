@@ -265,19 +265,19 @@ export const DhakaMapCorridor: React.FC<DhakaMapCorridorProps> = ({
     const bulletPos: [number, number] = [23.7895, 90.4072];
 
     const bulletHtml = `
-      <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); cursor: pointer;">
-        <!-- Pulsing Radar Wave -->
-        <div style="position: absolute; width: 34px; height: 34px; border-radius: 9999px; background: rgba(210,248,50,0.2); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+      <div style="position: relative; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+        <!-- Soft Glowing Radar Ring -->
+        <div style="position: absolute; inset: -3px; border-radius: 9999px; background: rgba(210,248,50,0.25);"></div>
         
         <!-- Tesla Vehicle Puck -->
-        <div style="width: 24px; height: 24px; border-radius: 9999px; background: #0E0E12; border: 2px solid #D2F832; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(210,248,50,0.8); z-index: 10;">
+        <div style="width: 24px; height: 24px; border-radius: 9999px; background: #0E0E12; border: 2px solid #D2F832; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(210,248,50,0.7); position: relative; z-index: 10;">
           <svg style="width: 12px; height: 12px; fill: #D2F832;" viewBox="0 0 24 24">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
           </svg>
         </div>
 
         <!-- Clean floating vehicle badge -->
-        <div style="position: absolute; top: 26px; background: #121216; color: #D2F832; border: 1px solid rgba(210,248,50,0.5); font-family: monospace; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.8);">
+        <div style="position: absolute; top: 27px; background: #121216; color: #D2F832; border: 1px solid rgba(210,248,50,0.5); font-family: monospace; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.8); z-index: 20;">
           Bullet (Jashim)
         </div>
       </div>
@@ -286,7 +286,8 @@ export const DhakaMapCorridor: React.FC<DhakaMapCorridorProps> = ({
     const bulletIcon = L.divIcon({
       className: 'custom-bullet-puck',
       html: bulletHtml,
-      iconSize: [0, 0]
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
     });
 
     L.marker(bulletPos, { icon: bulletIcon, zIndexOffset: 1000 })
