@@ -327,42 +327,47 @@ export const DhakaMapCorridor: React.FC<DhakaMapCorridorProps> = ({
 
   return (
     <div className="bg-[#121216] border border-white/10 rounded-[32px] p-5 sm:p-6 shadow-2xl relative overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-[#D2F832]/10 border border-[#D2F832]/30 flex items-center justify-center text-[#D2F832]">
-            <Navigation className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-              Dhaka Electric Corridor Map
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#D2F832]/15 text-[#D2F832] border border-[#D2F832]/30">
-                LIVE GIS
-              </span>
-            </h3>
-            <p className="text-xs text-zinc-400 font-mono">
-              Banani 11 Hub ⇄ Mohakhali & Gulshan Shared Lanes
-            </p>
+      {/* Header with resilient multi-tier responsive layout */}
+      <div className="pb-4 mb-4 border-b border-white/10 space-y-3">
+        {/* Title row */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#D2F832]/10 border border-[#D2F832]/30 flex items-center justify-center text-[#D2F832] shrink-0">
+              <Navigation className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-extrabold text-white tracking-tight whitespace-nowrap">
+                  Dhaka Corridor Map
+                </h3>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-[#D2F832]/15 text-[#D2F832] border border-[#D2F832]/30 font-bold whitespace-nowrap">
+                  LIVE GIS
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-400 font-mono truncate">
+                Banani 11 Hub ⇄ Mohakhali & Gulshan
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Minimal Legend */}
-        <div className="flex items-center gap-3 text-xs font-mono">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-white inline-block shadow-[0_0_8px_rgba(255,255,255,0.7)]" />
-            <span className="text-zinc-400">Pickup</span>
+        {/* Clean, dedicated, wrapping Legend pills */}
+        <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono pt-0.5">
+          <div className="flex items-center gap-1.5 bg-black/40 border border-white/5 px-2.5 py-1 rounded-full shrink-0">
+            <span className="w-2 h-2 rounded-full bg-white inline-block shadow-[0_0_6px_rgba(255,255,255,0.7)]" />
+            <span className="text-zinc-300">Pickup</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#D2F832] inline-block shadow-[0_0_8px_rgba(210,248,50,0.8)]" />
-            <span className="text-zinc-400">Dropoff</span>
+          <div className="flex items-center gap-1.5 bg-black/40 border border-white/5 px-2.5 py-1 rounded-full shrink-0">
+            <span className="w-2 h-2 rounded-full bg-[#D2F832] inline-block shadow-[0_0_6px_rgba(210,248,50,0.8)]" />
+            <span className="text-zinc-300">Dropoff</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#38BDF8] inline-block" />
-            <span className="text-zinc-400">Pool Route</span>
+          <div className="flex items-center gap-1.5 bg-black/40 border border-white/5 px-2.5 py-1 rounded-full shrink-0">
+            <span className="w-2 h-2 rounded-full bg-[#38BDF8] inline-block" />
+            <span className="text-zinc-300">Pool</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#D2F832] inline-block animate-ping" />
-            <span className="text-zinc-300 font-bold">Bullet</span>
+          <div className="flex items-center gap-1.5 bg-black/40 border border-white/5 px-2.5 py-1 rounded-full shrink-0">
+            <span className="w-2 h-2 rounded-full bg-[#D2F832] inline-block shadow-[0_0_6px_rgba(210,248,50,0.8)]" />
+            <span className="text-[#D2F832] font-bold">Bullet</span>
           </div>
         </div>
       </div>
@@ -390,34 +395,34 @@ export const DhakaMapCorridor: React.FC<DhakaMapCorridorProps> = ({
         </div>
 
         {/* Floating Perspective Presets */}
-        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 flex-wrap justify-end">
           <button
             onClick={handleResetCorridorView}
-            className="flex items-center gap-1.5 bg-[#181820]/90 hover:bg-[#222228] backdrop-blur-md text-white text-[11px] font-mono px-3 py-1.5 rounded-full border border-white/10 shadow-lg hover:border-[#D2F832]/40 transition-all"
+            className="flex items-center gap-1.5 bg-[#181820]/95 hover:bg-[#222228] backdrop-blur-md text-white text-[10px] font-mono px-2.5 py-1.5 rounded-full border border-white/10 shadow-lg hover:border-[#D2F832]/40 transition-colors"
             title="Focus Banani-Mohakhali Corridor"
           >
-            <Compass className="w-3.5 h-3.5 text-[#D2F832]" />
-            <span>Banani Corridor</span>
+            <Compass className="w-3 h-3 text-[#D2F832]" />
+            <span>Corridor</span>
           </button>
 
           <button
             onClick={handleFitAllZones}
-            className="flex items-center gap-1.5 bg-[#181820]/90 hover:bg-[#222228] backdrop-blur-md text-white text-[11px] font-mono px-3 py-1.5 rounded-full border border-white/10 shadow-lg hover:border-white/25 transition-all"
+            className="flex items-center gap-1.5 bg-[#181820]/95 hover:bg-[#222228] backdrop-blur-md text-white text-[10px] font-mono px-2.5 py-1.5 rounded-full border border-white/10 shadow-lg hover:border-white/25 transition-colors"
             title="Fit All Dhaka Metro Zones"
           >
-            <Layers className="w-3.5 h-3.5 text-zinc-400" />
+            <Layers className="w-3 h-3 text-zinc-400" />
             <span>All Zones</span>
           </button>
         </div>
       </div>
 
       {/* Corridor Telemetry Footer */}
-      <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] font-mono text-zinc-400">
-        <span className="flex items-center gap-1.5 text-zinc-300">
-          <MapPin className="w-3.5 h-3.5 text-[#D2F832]" />
+      <div className="mt-3.5 flex flex-col gap-1 text-[11px] font-mono text-zinc-400">
+        <span className="flex items-center gap-1.5 text-zinc-300 truncate">
+          <MapPin className="w-3.5 h-3.5 text-[#D2F832] shrink-0" />
           <span>Banani Road 11 Hub: 23.7937° N, 90.4066° E</span>
         </span>
-        <span className="text-zinc-500">
+        <span className="text-[10px] text-zinc-500">
           ESRI World Dark Canvas • Zero API Keys • Uncluttered Transit GIS
         </span>
       </div>
