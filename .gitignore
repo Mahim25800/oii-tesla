@@ -20,9 +20,9 @@ out/
 .env.production.local
 
 # Database
-*.sqlite
-*.sqlite3
-*.db
+*.sqlite*
+*.sqlite3*
+*.db*
 data/
 
 # Logs
@@ -35,3 +35,8 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Internal Automation Scripts
+scripts/
+docs/plans/
+

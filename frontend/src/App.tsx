@@ -1,0 +1,393 @@
+import React, { useState, useEffect } from 'react';
+import { User, DhakaZone, ActivePool, RideRequest } from './types';
+import { ApiService } from './lib/api';
+import { Navbar } from './components/Navbar';
+import { HeroShowcase } from './components/HeroShowcase';
+import { BentoShowcase } from './components/BentoShowcase';
+import { DhakaMapCorridor } from './components/DhakaMapCorridor';
+import { PassengerView } from './components/PassengerView';
+import { DriverView } from './components/DriverView';
+import { LiveScenarioSimulation } from './components/LiveScenarioSimulation';
+import { TopupModal } from './components/TopupModal';
+import { BulletSeatHUD } from './components/BulletSeatHUD';
+import { Zap, ShieldCheck, Heart, Radio, MapPin, ArrowRight } from 'lucide-react';
+
+const DEFAULT_DEMO_USERS: User[] = [
+  {
+    id: 'user_nusrat',
+    email: 'nusrat@dhakatesla.com',
+    name: 'Nusrat Jahan',
+    role: 'PASSENGER',
+    phone: '+8801711000001',
+    wallet_poysha: 150000,
+    wallet_bdt: 1500
+  },
+  {
+    id: 'user_rafiq',
+    email: 'rafiq@dhakatesla.com',
+    name: 'Rafiqul Islam',
+    role: 'PASSENGER',
+    phone: '+8801711000002',
+    wallet_poysha: 80000,
+    wallet_bdt: 800
+  },
+  {
+    id: 'user_shirin',
+    email: 'shirin@dhakatesla.com',
+    name: 'Shirin Akter',
+    role: 'PASSENGER',
+    phone: '+8801711000003',
+    wallet_poysha: 200000,
+    wallet_bdt: 2000
+  },
+  {
+    id: 'user_jashim',
+    email: 'jashim@dhakatesla.com',
+    name: 'Jashim Uddin (Pilot)',
+    role: 'DRIVER',
+    phone: '+8801711000004',
+    wallet_poysha: 50000,
+    wallet_bdt: 500
+  }
+];
+
+const DEFAULT_ZONES: DhakaZone[] = [
+  { id: 'BANANI', name: 'Banani Road 11', bnName: 'বনানী ১১', latitude: 23.7937, longitude: 90.4066, corridor: 'BANANI_CORRIDOR', description: 'Commercial & dining hub' },
+  { id: 'GULSHAN_2', name: 'Gulshan 2 Circle', bnName: 'গুলশান ২', latitude: 23.7948, longitude: 90.4143, corridor: 'BANANI_CORRIDOR', description: 'Diplomatic zone' },
+  { id: 'GULSHAN_1', name: 'Gulshan 1 Circle', bnName: 'গুলশান ১', latitude: 23.7785, longitude: 90.4168, corridor: 'GULSHAN_MOHAKHALI_CORRIDOR', description: 'Rafiq destination' },
+  { id: 'MOHAKHALI', name: 'Mohakhali Wireless', bnName: 'মহাখালী', latitude: 23.7776, longitude: 90.4054, corridor: 'GULSHAN_MOHAKHALI_CORRIDOR', description: 'Nusrat destination' },
+  { id: 'FARMGATE', name: 'Farmgate', bnName: 'ফার্মগেট', latitude: 23.7561, longitude: 90.3872, corridor: 'CENTRAL_CORRIDOR', description: 'Major transit crossing' },
+  { id: 'DHANMONDI', name: 'Dhanmondi 27', bnName: 'ধানমন্ডি ২৭', latitude: 23.7533, longitude: 90.3769, corridor: 'WEST_CORRIDOR', description: 'Residential & university corridor' },
+  { id: 'MIRPUR_10', name: 'Mirpur 10 Circle', bnName: 'মিরপুর ১০', latitude: 23.8070, longitude: 90.3686, corridor: 'MIRPUR_CORRIDOR', description: 'Metro rail interchange' },
+  { id: 'UTTARA_3', name: 'Uttara Sector 3', bnName: 'উত্তরা ৩', latitude: 23.8680, longitude: 90.3980, corridor: 'NORTH_CORRIDOR', description: 'Airport highway residential gate' },
+  { id: 'BADDA', name: 'Badda Link Road', bnName: 'বাড্ডা লিংক রোড', latitude: 23.7806, longitude: 90.4267, corridor: 'EAST_CORRIDOR', description: 'Pragoti Sarani connection' },
+  { id: 'TEJGAON', name: 'Tejgaon I/A', bnName: 'তেজগাঁও', latitude: 23.7684, longitude: 90.3995, corridor: 'CENTRAL_CORRIDOR', description: 'Industrial & tech zone' }
+];
+
+export default function App() {
+  const [demoUsers, setDemoUsers] = useState<User[]>(DEFAULT_DEMO_USERS);
+  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_DEMO_USERS[0]);
+  const [zones, setZones] = useState<DhakaZone[]>(DEFAULT_ZONES);
+  const [activeTab, setActiveTab] = useState<'HOME' | 'PASSENGER' | 'DRIVER' | 'SIMULATION'>('HOME');
+  const [isTopupOpen, setIsTopupOpen] = useState(false);
+  const [isWsConnected, setIsWsConnected] = useState(false);
+  const [activeRides, setActiveRides] = useState<RideRequest[]>([]);
+  const [activePool, setActivePool] = useState<ActivePool | null>(null);
+
+  // Initialize data on mount with resilient fallbacks
+  useEffect(() => {
+    async function init() {
+      try {
+        const [users, zonesList] = await Promise.all([
+          ApiService.getDemoUsers().catch(() => []),
+          ApiService.getZones().catch(() => [])
+        ]);
+
+        if (users && users.length > 0) {
+          setDemoUsers(users);
+          const nusrat = users.find((u) => u.email.includes('nusrat')) || users[0];
+          if (nusrat) {
+            handleSelectUser(nusrat);
+          }
+        }
+        if (zonesList && zonesList.length > 0) {
+          setZones(zonesList);
+        }
+      } catch (err) {
+        console.warn('Initial data fetch fallback active:', err);
+      }
+    }
+    init();
+  }, []);
+
+  // WebSocket Connection for real-time live push updates
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+
+    function connectWs() {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        setIsWsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'RIDE_UPDATED' || data.type === 'POOL_UPDATED') {
+            refreshData();
+          }
+        } catch (e) {
+          console.error('WS parse error:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        setIsWsConnected(false);
+        reconnectTimeout = setTimeout(connectWs, 5000);
+      };
+
+      ws.onerror = () => {
+        // Handled silently by onclose to prevent terminal noise when server restarts
+      };
+    }
+
+    connectWs();
+    return () => {
+      if (ws) ws.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    };
+  }, [currentUser?.id]);
+
+  const handleSelectUser = (user: User) => {
+    setCurrentUser(user);
+    ApiService.setToken(user.token || null);
+    refreshData();
+  };
+
+  // Role-aware tab switcher: auto-switches user to match the chosen portal
+  const handleSelectTab = (tab: 'HOME' | 'PASSENGER' | 'DRIVER' | 'SIMULATION') => {
+    setActiveTab(tab);
+    if (tab === 'DRIVER' && currentUser?.role !== 'DRIVER') {
+      const driver = demoUsers.find((u) => u.role === 'DRIVER') || DEFAULT_DEMO_USERS.find((u) => u.role === 'DRIVER');
+      if (driver) {
+        handleSelectUser(driver);
+      }
+    } else if (tab === 'PASSENGER' && currentUser?.role !== 'PASSENGER') {
+      const passenger = demoUsers.find((u) => u.role === 'PASSENGER') || DEFAULT_DEMO_USERS.find((u) => u.role === 'PASSENGER');
+      if (passenger) {
+        handleSelectUser(passenger);
+      }
+    }
+  };
+
+  const refreshData = async () => {
+    try {
+      const [pool, users] = await Promise.all([
+        ApiService.getDriverActivePool().catch(() => null),
+        ApiService.getDemoUsers().catch(() => [])
+      ]);
+      setActivePool(pool);
+      if (currentUser) {
+        const updated = users.find(u => u.id === currentUser.id);
+        if (updated) setCurrentUser(updated);
+      }
+    } catch (err) {
+      console.error('Data refresh error:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
+  }, [currentUser?.id]);
+
+  return (
+    <div className="min-h-screen bg-[#09090B] text-zinc-100 flex flex-col selection:bg-[#D2F832] selection:text-black font-sans relative">
+      
+      {/* Background Ambient Radial Glow */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[550px] bg-[#D2F832]/[0.08] blur-[150px] rounded-full pointer-events-none -z-10" />
+
+      {/* FLOATING PILL NAVBAR */}
+      <Navbar
+        currentUser={currentUser}
+        demoUsers={demoUsers}
+        onSelectUser={handleSelectUser}
+        activeTab={activeTab}
+        onSelectTab={handleSelectTab}
+        onTopup={() => setIsTopupOpen(true)}
+        isWsConnected={isWsConnected}
+      />
+
+      {/* MAIN VIEW CONTENT */}
+      <main className="flex-1">
+        {activeTab === 'HOME' && (
+          <div>
+            {/* Hero Showcase with 3D Perspective Phones */}
+            <HeroShowcase
+              currentUser={currentUser}
+              zones={zones}
+              activePool={activePool}
+              activeRides={activeRides}
+              onOpenApp={handleSelectTab}
+              onTopup={() => setIsTopupOpen(true)}
+            />
+
+            {/* Bento Grid Showcase */}
+            <BentoShowcase
+              onOpenSimulator={() => handleSelectTab('SIMULATION')}
+              onOpenPassenger={() => handleSelectTab('PASSENGER')}
+            />
+
+            {/* Embedded Live Corridor Map Section */}
+            <section className="py-16 px-4 md:px-8 max-w-7xl mx-auto border-t border-white/10">
+              <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                  <span className="text-xs font-mono text-[#D2F832] uppercase tracking-wider block mb-1">
+                    Telemetry & Routing
+                  </span>
+                  <h3 className="text-3xl font-extrabold text-white">
+                    Banani-Mohakhali Corridor Map
+                  </h3>
+                </div>
+                <p className="text-xs text-zinc-400 font-mono max-w-md">
+                  Real-time geographic visualization of Banani Road 11 pickup hub, Gulshan links, and Mohakhali destination lanes.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-8 min-w-0">
+                  <DhakaMapCorridor
+                    zones={zones}
+                    activeRides={activeRides}
+                  />
+                </div>
+                <div className="lg:col-span-4 min-w-0">
+                  <BulletSeatHUD activePool={activePool} />
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {activeTab === 'PASSENGER' && (
+          <div className="pt-8 pb-16 px-4 md:px-8 max-w-7xl mx-auto">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-mono text-[#D2F832] uppercase font-bold tracking-wider">
+                  Commuter Portal
+                </span>
+                <h2 className="text-3xl font-black text-white tracking-tight mt-1">
+                  Ride Pooling & Booking
+                </h2>
+              </div>
+              <button
+                onClick={() => handleSelectTab('SIMULATION')}
+                className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-full text-xs font-mono text-zinc-300"
+              >
+                <Radio className="w-3.5 h-3.5 text-[#D2F832] animate-pulse" />
+                <span>Open Story Simulator</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-8 min-w-0">
+                <PassengerView
+                  currentUser={currentUser}
+                  zones={zones}
+                  onRideBooked={() => refreshData()}
+                  onRefreshUser={() => refreshData()}
+                  onTopup={() => setIsTopupOpen(true)}
+                />
+              </div>
+              <div className="lg:col-span-4 min-w-0 space-y-6">
+                <BulletSeatHUD activePool={activePool} />
+                <DhakaMapCorridor zones={zones} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'DRIVER' && (
+          <div className="pt-8 pb-16 px-4 md:px-8 max-w-7xl mx-auto">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-mono text-[#D2F832] uppercase font-bold tracking-wider">
+                  Pilot Portal
+                </span>
+                <h2 className="text-3xl font-black text-white tracking-tight mt-1">
+                  Jashim Uddin Cockpit — "Bullet"
+                </h2>
+              </div>
+              <button
+                onClick={() => handleSelectTab('SIMULATION')}
+                className="hidden sm:flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-full text-xs font-mono text-zinc-300"
+              >
+                <Radio className="w-3.5 h-3.5 text-[#D2F832] animate-pulse" />
+                <span>Open Story Simulator</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-8 min-w-0">
+                <DriverView
+                  currentUser={currentUser}
+                  onRefreshUser={() => refreshData()}
+                />
+              </div>
+              <div className="lg:col-span-4 min-w-0 space-y-6">
+                <BulletSeatHUD activePool={activePool} />
+                <DhakaMapCorridor zones={zones} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'SIMULATION' && (
+          <div className="pt-8 pb-16 px-4 md:px-8 max-w-7xl mx-auto">
+            <div className="mb-6">
+              <span className="text-xs font-mono text-[#D2F832] uppercase font-bold tracking-wider">
+                Automated Invariant Demonstration
+              </span>
+              <h2 className="text-3xl font-black text-white tracking-tight mt-1">
+                PRD Banani Rush-Hour Story Runner
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-8 min-w-0">
+                <LiveScenarioSimulation onSimulationStep={() => refreshData()} />
+              </div>
+              <div className="lg:col-span-4 min-w-0 space-y-6">
+                <BulletSeatHUD activePool={activePool} />
+                <DhakaMapCorridor zones={zones} />
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* EDITORIAL TECH FOOTER */}
+      <footer className="border-t border-white/10 bg-[#0C0C0F] py-12 px-4 md:px-8">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#D2F832] flex items-center justify-center text-black shadow-md shadow-[#D2F832]/20">
+              <Zap className="w-4 h-4 fill-black" />
+            </div>
+            <div>
+              <span className="font-black text-sm text-white tracking-tight">DHAKA TESLA POOL</span>
+              <p className="text-[11px] text-zinc-500 font-mono">
+                Share a seat. Split the fare. Survive Dhaka traffic.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-6 text-xs font-mono text-zinc-400">
+            <span className="flex items-center gap-1.5 text-zinc-300">
+              <ShieldCheck className="w-4 h-4 text-[#D2F832]" />
+              Capacity Invariant: C ≤ 3 Seats
+            </span>
+            <span className="flex items-center gap-1.5 text-zinc-300">
+              <Zap className="w-4 h-4 text-[#D2F832]" />
+              Integer Poysha: ৳1 = 100 Poysha
+            </span>
+            <span className="text-zinc-600">
+              Dhaka Tesla v1.0.0
+            </span>
+          </div>
+        </div>
+      </footer>
+
+      {/* TOP-UP MODAL */}
+      <TopupModal
+        isOpen={isTopupOpen}
+        onClose={() => setIsTopupOpen(false)}
+        currentUser={currentUser}
+        onSuccess={() => refreshData()}
+      />
+
+    </div>
+  );
+}
