@@ -50,11 +50,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setSuccessMsg(null);
   };
 
-  const handleQuickFill = (demoEmail: string, demoRole: 'PASSENGER' | 'DRIVER') => {
-    setMode('SIGN_IN');
-    setIdentifier(demoEmail);
-    setPassword('password123');
+  const handleQuickLogin = async (demoEmail: string, demoRole: 'PASSENGER' | 'DRIVER') => {
+    setLoading(true);
     setError(null);
+    try {
+      const res = await ApiService.login(demoEmail, 'password123');
+      confetti({ particleCount: 60, spread: 55, origin: { y: 0.6 } });
+      setSuccessMsg(`Welcome, ${res.user.name}!`);
+      setTimeout(() => {
+        onAuthSuccess({ ...res.user, token: res.token });
+        onClose();
+        resetForm();
+      }, 500);
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -274,34 +286,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {/* Quick-Fill Seed Cast Shortcut */}
             <div className="pt-1">
               <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider block mb-2">
-                ⚡ Quick-Fill PRD Cast:
+                ⚡ 1-Click Switch PRD Cast:
               </span>
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('nusrat@dhakatesla.com', 'PASSENGER')}
-                  className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 transition-colors"
+                  disabled={loading}
+                  onClick={() => handleQuickLogin('nusrat@dhakatesla.com', 'PASSENGER')}
+                  className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 transition-colors disabled:opacity-50"
                 >
                   Nusrat (Pass)
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('jashim@dhakatesla.com', 'DRIVER')}
-                  className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 hover:bg-[#D2F832]/10 text-zinc-300 hover:text-[#D2F832] border border-white/5 transition-colors"
+                  disabled={loading}
+                  onClick={() => handleQuickLogin('jashim@dhakatesla.com', 'DRIVER')}
+                  className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 hover:bg-[#D2F832]/10 text-zinc-300 hover:text-[#D2F832] border border-white/5 transition-colors disabled:opacity-50"
                 >
                   Jashim (Driver)
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('rafiq@dhakatesla.com', 'PASSENGER')}
-                  className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 transition-colors"
+                  disabled={loading}
+                  onClick={() => handleQuickLogin('rafiq@dhakatesla.com', 'PASSENGER')}
+                  className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 transition-colors disabled:opacity-50"
                 >
                   Rafiq (Pass)
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('shirin@dhakatesla.com', 'PASSENGER')}
-                  className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 transition-colors"
+                  disabled={loading}
+                  onClick={() => handleQuickLogin('shirin@dhakatesla.com', 'PASSENGER')}
+                  className="px-2.5 py-1 text-[11px] rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 transition-colors disabled:opacity-50"
                 >
                   Shirin (Pass)
                 </button>

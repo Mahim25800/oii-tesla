@@ -122,123 +122,126 @@ export class PoolingService {
         JSON.stringify({ pickup: params.pickupZone, destination: params.destinationZone, seats, farePoysha: soloFare.finalFarePoysha })
       );
 
-      // 2. Look for open, compatible pools currently FORMING or ACTIVE with available seats
-      const candidatePools = db.prepare(`
-        SELECT p.id, p.vehicle_id, p.driver_id, p.total_capacity, p.occupied_seats, p.status, p.current_zone,
-               v.name as vehicle_name, v.license_plate
-        FROM pools p
-        JOIN vehicles v ON v.id = p.vehicle_id
-        WHERE p.status IN ('FORMING', 'ACTIVE')
-          AND (p.total_capacity - p.occupied_seats) >= ?
-        ORDER BY p.created_at ASC
-      `).all(seats) as any[];
+      // 2. Only auto-match into open pools if explicitly enabled (e.g. simulation or test automation)
+      if (params.autoPool) {
+        const candidatePools = db.prepare(`
+          SELECT p.id, p.vehicle_id, p.driver_id, p.total_capacity, p.occupied_seats, p.status, p.current_zone,
+                 v.name as vehicle_name, v.license_plate
+          FROM pools p
+          JOIN vehicles v ON v.id = p.vehicle_id
+          WHERE p.status IN ('FORMING', 'ACTIVE')
+            AND (p.total_capacity - p.occupied_seats) >= ?
+          ORDER BY p.created_at ASC
+        `).all(seats) as any[];
 
-      for (const pool of candidatePools) {
-        // Find existing rides in this pool to verify corridor route compatibility
-        const existingMembers = db.prepare(`
-          SELECT r.pickup_zone, r.destination_zone
-          FROM pool_memberships pm
-          JOIN ride_requests r ON r.id = pm.ride_request_id
-          WHERE pm.pool_id = ? AND pm.status = 'ACTIVE'
-        `).all(pool.id) as { pickup_zone: string; destination_zone: string }[];
+        for (const pool of candidatePools) {
+          // Find existing rides in this pool to verify corridor route compatibility
+          const existingMembers = db.prepare(`
+            SELECT r.pickup_zone, r.destination_zone
+            FROM pool_memberships pm
+            JOIN ride_requests r ON r.id = pm.ride_request_id
+            WHERE pm.pool_id = ? AND pm.status = 'ACTIVE'
+          `).all(pool.id) as { pickup_zone: string; destination_zone: string }[];
 
-        let isCompatible = true;
-        for (const member of existingMembers) {
-          const check = areRoutesCompatible(
-            member.pickup_zone,
-            member.destination_zone,
-            params.pickupZone,
-            params.destinationZone
-          );
-          if (!check.compatible) {
-            isCompatible = false;
-            break;
-          }
-        }
-
-        if (isCompatible) {
-          // Re-verify capacity constraint strictly before updating
-          const freshPool = db.prepare('SELECT occupied_seats, total_capacity FROM pools WHERE id = ?').get(pool.id) as any;
-          if (freshPool.occupied_seats + seats > freshPool.total_capacity) {
-            continue; // Can't fit in this pool, check next
-          }
-
-          // Matched! Calculate pooled fare with 25% discount
-          const pooledFare = FareEngine.calculateFare({
-            pickupZoneId: params.pickupZone,
-            destinationZoneId: params.destinationZone,
-            requestedSeats: seats,
-            isPooled: true
-          });
-
-          // Atomically occupy seats
-          db.prepare(`
-            UPDATE pools 
-            SET occupied_seats = occupied_seats + ?, updated_at = datetime('now')
-            WHERE id = ?
-          `).run(seats, pool.id);
-
-          // Create pool membership
-          db.prepare(`
-            INSERT INTO pool_memberships (id, pool_id, ride_request_id, seats_allocated, status, joined_at)
-            VALUES (?, ?, ?, ?, 'ACTIVE', datetime('now'))
-          `).run(uuidv4(), pool.id, rideId, seats);
-
-          // Update ride request to MATCHED
-          db.prepare(`
-            UPDATE ride_requests
-            SET status = 'MATCHED',
-                pool_id = ?,
-                discount_poysha = ?,
-                final_fare_poysha = ?,
-                updated_at = datetime('now')
-            WHERE id = ?
-          `).run(pool.id, pooledFare.discountPoysha, pooledFare.finalFarePoysha, rideId);
-
-          // Also apply pool discount to existing members in this pool who weren't already discounted!
-          const activeRideRequests = db.prepare(`
-            SELECT r.id, r.pickup_zone, r.destination_zone, r.requested_seats, r.discount_poysha
-            FROM ride_requests r
-            JOIN pool_memberships pm ON pm.ride_request_id = r.id
-            WHERE pm.pool_id = ? AND pm.status = 'ACTIVE' AND r.id != ?
-          `).all(pool.id, rideId) as any[];
-
-          for (const otherRide of activeRideRequests) {
-            if (otherRide.discount_poysha === 0) {
-              const otherPooledFare = FareEngine.calculateFare({
-                pickupZoneId: otherRide.pickup_zone,
-                destinationZoneId: otherRide.destination_zone,
-                requestedSeats: otherRide.requested_seats,
-                isPooled: true
-              });
-              db.prepare(`
-                UPDATE ride_requests
-                SET discount_poysha = ?,
-                    final_fare_poysha = ?,
-                    updated_at = datetime('now')
-                WHERE id = ?
-              `).run(otherPooledFare.discountPoysha, otherPooledFare.finalFarePoysha, otherRide.id);
+          let isCompatible = true;
+          for (const member of existingMembers) {
+            const check = areRoutesCompatible(
+              member.pickup_zone,
+              member.destination_zone,
+              params.pickupZone,
+              params.destinationZone
+            );
+            if (!check.compatible) {
+              isCompatible = false;
+              break;
             }
           }
 
-          // Audit log match
-          db.prepare(`
-            INSERT INTO audit_logs (id, entity_type, entity_id, action, actor_id, details)
-            VALUES (?, 'POOL', ?, 'SEAT_ALLOCATED', ?, ?)
-          `).run(
-            uuidv4(),
-            pool.id,
-            params.passengerId,
-            JSON.stringify({
-              rideId,
-              seatsAllocated: seats,
-              newOccupiedSeats: freshPool.occupied_seats + seats,
-              capacity: freshPool.total_capacity,
-              poolDiscountApplied: pooledFare.discountPoysha
-            })
-          );
+          if (isCompatible) {
+            // Re-verify capacity constraint strictly before updating
+            const freshPool = db.prepare('SELECT occupied_seats, total_capacity FROM pools WHERE id = ?').get(pool.id) as any;
+            if (freshPool.occupied_seats + seats > freshPool.total_capacity) {
+              continue; // Can't fit in this pool, check next
+            }
 
-          break; // successfully matched!
+            // Matched! Calculate pooled fare with 25% discount
+            const pooledFare = FareEngine.calculateFare({
+              pickupZoneId: params.pickupZone,
+              destinationZoneId: params.destinationZone,
+              requestedSeats: seats,
+              isPooled: true
+            });
+
+            // Atomically occupy seats
+            db.prepare(`
+              UPDATE pools 
+              SET occupied_seats = occupied_seats + ?, updated_at = datetime('now')
+              WHERE id = ?
+            `).run(seats, pool.id);
+
+            // Create pool membership
+            db.prepare(`
+              INSERT INTO pool_memberships (id, pool_id, ride_request_id, seats_allocated, status, joined_at)
+              VALUES (?, ?, ?, ?, 'ACTIVE', datetime('now'))
+            `).run(uuidv4(), pool.id, rideId, seats);
+
+            // Update ride request to MATCHED
+            db.prepare(`
+              UPDATE ride_requests
+              SET status = 'MATCHED',
+                  pool_id = ?,
+                  discount_poysha = ?,
+                  final_fare_poysha = ?,
+                  updated_at = datetime('now')
+              WHERE id = ?
+            `).run(pool.id, pooledFare.discountPoysha, pooledFare.finalFarePoysha, rideId);
+
+            // Also apply pool discount to existing members in this pool who weren't already discounted!
+            const activeRideRequests = db.prepare(`
+              SELECT r.id, r.pickup_zone, r.destination_zone, r.requested_seats, r.discount_poysha
+              FROM ride_requests r
+              JOIN pool_memberships pm ON pm.ride_request_id = r.id
+              WHERE pm.pool_id = ? AND pm.status = 'ACTIVE' AND r.id != ?
+            `).all(pool.id, rideId) as any[];
+
+            for (const otherRide of activeRideRequests) {
+              if (otherRide.discount_poysha === 0) {
+                const otherPooledFare = FareEngine.calculateFare({
+                  pickupZoneId: otherRide.pickup_zone,
+                  destinationZoneId: otherRide.destination_zone,
+                  requestedSeats: otherRide.requested_seats,
+                  isPooled: true
+                });
+
+                db.prepare(`
+                  UPDATE ride_requests
+                  SET discount_poysha = ?,
+                      final_fare_poysha = ?,
+                      updated_at = datetime('now')
+                  WHERE id = ?
+                `).run(otherPooledFare.discountPoysha, otherPooledFare.finalFarePoysha, otherRide.id);
+              }
+            }
+
+            // Audit log match
+            db.prepare(`
+              INSERT INTO audit_logs (id, entity_type, entity_id, action, actor_id, details)
+              VALUES (?, 'POOL', ?, 'SEAT_ALLOCATED', ?, ?)
+            `).run(
+              uuidv4(),
+              pool.id,
+              params.passengerId,
+              JSON.stringify({
+                rideId,
+                seatsAllocated: seats,
+                newOccupiedSeats: freshPool.occupied_seats + seats,
+                capacity: freshPool.total_capacity,
+                poolDiscountApplied: pooledFare.discountPoysha
+              })
+            );
+
+            break; // successfully matched!
+          }
         }
       }
     });
@@ -316,11 +319,42 @@ export class PoolingService {
         VALUES (?, ?, ?, ?, 'ACTIVE', datetime('now'))
       `).run(uuidv4(), pool.id, ride.id, ride.requested_seats);
 
-      db.prepare(`
-        UPDATE ride_requests
-        SET status = 'MATCHED', pool_id = ?, updated_at = datetime('now')
-        WHERE id = ?
-      `).run(pool.id, ride.id);
+      // Check all active members in this pool
+      const activeMembers = db.prepare(`
+        SELECT r.id, r.pickup_zone, r.destination_zone, r.requested_seats
+        FROM ride_requests r
+        JOIN pool_memberships pm ON pm.ride_request_id = r.id
+        WHERE pm.pool_id = ? AND pm.status = 'ACTIVE'
+      `).all(pool.id) as any[];
+
+      const isPooled = activeMembers.length > 1;
+
+      if (isPooled) {
+        for (const member of activeMembers) {
+          const pooledFare = FareEngine.calculateFare({
+            pickupZoneId: member.pickup_zone,
+            destinationZoneId: member.destination_zone,
+            requestedSeats: member.requested_seats,
+            isPooled: true
+          });
+
+          db.prepare(`
+            UPDATE ride_requests
+            SET status = 'MATCHED',
+                pool_id = ?,
+                discount_poysha = ?,
+                final_fare_poysha = ?,
+                updated_at = datetime('now')
+            WHERE id = ?
+          `).run(pool.id, pooledFare.discountPoysha, pooledFare.finalFarePoysha, member.id);
+        }
+      } else {
+        db.prepare(`
+          UPDATE ride_requests
+          SET status = 'MATCHED', pool_id = ?, updated_at = datetime('now')
+          WHERE id = ?
+        `).run(pool.id, ride.id);
+      }
 
       // Audit log
       db.prepare(`
@@ -330,13 +364,14 @@ export class PoolingService {
         uuidv4(),
         ride.id,
         driverId,
-        JSON.stringify({ poolId: pool.id, vehicle: vehicle.name, occupiedSeats: pool.occupied_seats + ride.requested_seats })
+        JSON.stringify({ poolId: pool.id, vehicle: vehicle.name, occupiedSeats: pool.occupied_seats + ride.requested_seats, isPooled })
       );
     });
 
     acceptTransaction();
     const result = this.getRideById(rideRequestId)!;
     wsService.broadcast({ type: 'RIDE_UPDATED', payload: result });
+    wsService.broadcast({ type: 'POOL_UPDATED', payload: { poolId: result.pool_id } });
     return result;
   }
 

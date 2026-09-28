@@ -34,7 +34,7 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
   onTopup
 }) => {
   const isDriver = currentUser?.role === 'DRIVER';
-  const firstName = currentUser?.name.split(' ')[0] || 'Nusrat';
+  const firstName = currentUser ? currentUser.name.split(' ')[0] : 'Commuter';
 
   return (
     <section className="relative pt-12 pb-20 px-4 md:px-8 max-w-7xl mx-auto overflow-hidden">

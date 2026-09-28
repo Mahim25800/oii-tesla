@@ -43,7 +43,7 @@ export class RideController {
         return;
       }
 
-      const { pickupZone, destinationZone, requestedSeats = 1, paymentMethod = 'TESLAPAY' } = req.body;
+      const { pickupZone, destinationZone, requestedSeats = 1, paymentMethod = 'TESLAPAY', autoPool = false } = req.body;
       if (!pickupZone || !destinationZone) {
         res.status(400).json({ error: 'Pickup and destination zones are required' });
         return;
@@ -54,7 +54,8 @@ export class RideController {
         pickupZone,
         destinationZone,
         requestedSeats: Number(requestedSeats),
-        paymentMethod
+        paymentMethod,
+        autoPool: Boolean(autoPool)
       });
 
       res.status(201).json({
