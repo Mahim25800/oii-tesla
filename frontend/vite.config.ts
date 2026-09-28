@@ -8,10 +8,24 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': 'http://localhost:5000',
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {
+            // Suppress terminal ECONNREFUSED error spam when backend is starting or offline
+          });
+        }
+      },
       '/ws': {
         target: 'ws://localhost:5000',
-        ws: true
+        ws: true,
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {
+            // Suppress terminal ECONNREFUSED error spam when backend is starting or offline
+          });
+        }
       }
     }
   }

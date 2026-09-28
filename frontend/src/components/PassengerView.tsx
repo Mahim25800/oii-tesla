@@ -12,7 +12,9 @@ import {
   ArrowRight,
   ShieldCheck,
   Ban,
-  RotateCcw
+  RotateCcw,
+  Zap,
+  TrendingDown
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -21,13 +23,15 @@ interface PassengerViewProps {
   zones: DhakaZone[];
   onRideBooked?: (ride: RideRequest) => void;
   onRefreshUser?: () => void;
+  onTopup?: () => void;
 }
 
 export const PassengerView: React.FC<PassengerViewProps> = ({
   currentUser,
   zones,
   onRideBooked,
-  onRefreshUser
+  onRefreshUser,
+  onTopup
 }) => {
   // Defaults customized to persona: Nusrat prefers Mohakhali, Rafiq prefers Gulshan 1
   const defaultDest = currentUser.email.includes('rafiq') ? 'GULSHAN_1' : 'MOHAKHALI';
@@ -99,6 +103,11 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
 
   const handleBookRide = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pickupZone === destinationZone) {
+      setMessage('Pickup and destination must be different zones.');
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
@@ -111,17 +120,19 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
       });
 
       setActiveRide(res.ride);
-      setMessage(res.message);
-
-      if (res.ride.status === 'MATCHED') {
-        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-      }
+      confetti({
+        particleCount: 60,
+        spread: 60,
+        origin: { y: 0.6 }
+      });
 
       if (onRideBooked) onRideBooked(res.ride);
       if (onRefreshUser) onRefreshUser();
+
+      setMessage('Ride request dispatched to Banani electric corridor!');
       await loadPassengerData();
     } catch (err: any) {
-      setMessage(`Booking Error: ${err.message}`);
+      setMessage(err.message || 'Failed to request ride.');
     } finally {
       setLoading(false);
     }
@@ -131,24 +142,24 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
     if (!activeRide) return;
     setCancelling(true);
     try {
-      await ApiService.cancelRide(activeRide.id, 'Cancelled by passenger');
+      await ApiService.cancelRide(activeRide.id);
       setActiveRide(null);
-      setMessage('Ride request cancelled successfully. Seats released back to pool.');
+      setMessage('Ride cancelled. Seat released back to Bullet fleet.');
       await loadPassengerData();
       if (onRefreshUser) onRefreshUser();
     } catch (err: any) {
-      setMessage(`Cancel Error: ${err.message}`);
+      setMessage(err.message || 'Cannot cancel ride at this stage.');
     } finally {
       setCancelling(false);
     }
   };
 
   const lifecycleSteps = [
-    { key: 'REQUESTED', label: 'Requested', desc: 'Searching Tesla' },
-    { key: 'MATCHED', label: 'Matched', desc: 'Assigned to Bullet' },
-    { key: 'DRIVER_ARRIVED', label: 'Arrived', desc: 'At Banani 11' },
-    { key: 'STARTED', label: 'In Progress', desc: 'Rolling in traffic' },
-    { key: 'COMPLETED', label: 'Arrived', desc: 'Fare settled' }
+    { key: 'REQUESTED', label: 'Requested', desc: 'Searching for Bullet' },
+    { key: 'MATCHED', label: 'Matched', desc: 'Driver Assigned' },
+    { key: 'DRIVER_ARRIVED', label: 'Arrived', desc: 'Boarding Trike' },
+    { key: 'STARTED', label: 'In Transit', desc: 'Rolling to Destination' },
+    { key: 'COMPLETED', label: 'Completed', desc: 'Fare Settled' }
   ];
 
   const currentStepIdx = activeRide
@@ -156,79 +167,56 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
     : -1;
 
   return (
-    <div className="space-y-6">
-      {/* Commuter Persona Header Card */}
-      <div className="bg-gradient-to-r from-gray-900 via-emerald-950/20 to-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-lg font-mono">
-            {currentUser.name.charAt(0)}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black text-white">{currentUser.name}</h2>
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/40">
-                PASSENGER
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 font-mono mt-0.5">
-              {currentUser.email} • {currentUser.phone}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="text-right font-mono bg-gray-950 px-4 py-2 rounded-xl border border-gray-800">
-            <span className="text-[10px] uppercase text-gray-400 block">TeslaPay Balance</span>
-            <span className="text-base font-bold text-emerald-400">
-              ৳{currentUser.wallet_bdt.toFixed(2)}
-            </span>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-8">
+      
+      {/* Alert banner if message exists */}
       {message && (
-        <div className="p-3.5 rounded-xl bg-gray-900 border border-emerald-800/60 text-emerald-400 text-xs font-mono flex items-center justify-between">
-          <span>{message}</span>
-          <button onClick={() => setMessage(null)} className="text-gray-400 hover:text-white">✕</button>
+        <div className="p-4 rounded-2xl bg-[#D2F832]/10 border border-[#D2F832]/30 text-white text-xs font-mono flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#D2F832]" />
+            <span>{message}</span>
+          </div>
+          <button onClick={() => setMessage(null)} className="text-zinc-400 hover:text-white font-bold">✕</button>
         </div>
       )}
 
       {/* ACTIVE RIDE CARD (If commuter currently has a live ride) */}
       {activeRide && (
-        <div className="bg-gradient-to-b from-gray-900 to-gray-950 border border-emerald-500/40 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 transform translate-x-4 -translate-y-4 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="bg-[#121216] border border-[#D2F832]/40 rounded-[32px] p-6 md:p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#D2F832]/5 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-4 border-b border-gray-800">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-6 border-b border-white/10">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-xs font-mono uppercase font-bold text-emerald-400">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#D2F832] animate-ping" />
+                <span className="text-xs font-mono uppercase font-extrabold text-[#D2F832]">
                   LIVE COMMUTE STATUS
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-white/5 text-zinc-300 border border-white/10">
                   Ride #{activeRide.id.slice(0, 8)}
                 </span>
               </div>
-              <h3 className="text-xl font-black text-white mt-1">
+              <h3 className="text-2xl font-extrabold text-white tracking-tight">
                 {activeRide.pickup_zone} → {activeRide.destination_zone}
               </h3>
             </div>
 
-            <div className="text-right font-mono">
-              <div className="text-[11px] text-gray-400 uppercase">Your Split Fare</div>
-              <div className="text-2xl font-black text-emerald-400">
+            <div className="text-left md:text-right font-mono">
+              <div className="text-xs text-zinc-400 uppercase">Your Split Fare</div>
+              <div className="text-3xl font-black text-[#D2F832] tracking-tight">
                 ৳{activeRide.final_fare_bdt.toFixed(2)}
               </div>
               {activeRide.discount_poysha > 0 && (
-                <div className="text-[10px] text-cyan-400 flex items-center justify-end gap-1">
-                  <Sparkles className="w-3 h-3" /> 25% Pool Discount Applied
+                <div className="text-xs text-zinc-300 flex items-center md:justify-end gap-1 mt-0.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#D2F832]" /> 
+                  <span className="text-[#D2F832] font-bold">25% Pool Split Applied</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Stepper Progress Bar */}
-          <div className="my-6">
+          <div className="my-8">
             <div className="grid grid-cols-5 gap-2 relative">
               {lifecycleSteps.map((step, idx) => {
                 const isPassed = idx <= currentStepIdx;
@@ -237,18 +225,18 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
                 return (
                   <div key={step.key} className="text-center relative">
                     <div
-                      className={`w-8 h-8 mx-auto rounded-full flex items-center justify-center text-xs font-mono font-bold transition-all ${
+                      className={`w-9 h-9 mx-auto rounded-full flex items-center justify-center text-xs font-mono font-bold transition-all ${
                         isCurrent
-                          ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/50 scale-110'
+                          ? 'bg-[#D2F832] text-black shadow-lg shadow-[#D2F832]/40 scale-110'
                           : isPassed
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                          : 'bg-gray-800 text-gray-500 border border-gray-700'
+                          ? 'bg-black text-[#D2F832] border border-[#D2F832]/60'
+                          : 'bg-zinc-900 text-zinc-600 border border-zinc-800'
                       }`}
                     >
                       {idx + 1}
                     </div>
-                    <div className="text-xs font-bold text-white mt-2">{step.label}</div>
-                    <div className="text-[10px] text-gray-400 font-mono hidden sm:block">{step.desc}</div>
+                    <div className="text-xs font-bold text-white mt-2.5">{step.label}</div>
+                    <div className="text-[10px] text-zinc-400 font-mono hidden sm:block mt-0.5">{step.desc}</div>
                   </div>
                 );
               })}
@@ -257,39 +245,41 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
 
           {/* Driver & Tesla Info */}
           {activeRide.driver ? (
-            <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono text-xs">
-              <div className="flex items-center gap-3">
-                <Car className="w-6 h-6 text-emerald-400" />
+            <div className="bg-black/60 p-5 rounded-2xl border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-mono text-xs">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-[#D2F832]/10 border border-[#D2F832]/30 flex items-center justify-center text-[#D2F832]">
+                  <Car className="w-5 h-5" />
+                </div>
                 <div>
-                  <div className="text-white font-bold">
+                  <div className="text-white font-extrabold text-sm">
                     Driver: {activeRide.driver.name} ({activeRide.driver.vehicle_name})
                   </div>
-                  <div className="text-gray-400 text-[11px]">
+                  <div className="text-zinc-400 text-xs mt-0.5">
                     Plate: {activeRide.driver.license_plate} • Phone: {activeRide.driver.phone}
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800/60 font-bold">
-                  Tesla Assigned
+                <span className="px-3 py-1 rounded-full bg-[#D2F832] text-black font-extrabold text-xs shadow-sm">
+                  Bullet Assigned
                 </span>
               </div>
             </div>
           ) : (
-            <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 flex items-center gap-3 font-mono text-xs text-gray-400">
-              <Clock className="w-5 h-5 text-amber-400 animate-spin" />
+            <div className="bg-black/60 p-5 rounded-2xl border border-white/10 flex items-center gap-3 font-mono text-xs text-zinc-400">
+              <Clock className="w-5 h-5 text-[#D2F832] animate-spin" />
               <span>Matching with nearest Dhaka Tesla Bullet in Banani 11 corridor...</span>
             </div>
           )}
 
           {/* Cancellation button (if still valid to cancel) */}
           {(activeRide.status === 'REQUESTED' || activeRide.status === 'MATCHED') && (
-            <div className="mt-4 flex justify-end">
+            <div className="mt-6 flex justify-end">
               <button
                 onClick={handleCancel}
                 disabled={cancelling}
-                className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/50 transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2.5 rounded-full text-xs font-mono font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <Ban className="w-3.5 h-3.5" />
                 <span>{cancelling ? 'Cancelling...' : 'Cancel Ride (Free Seats)'}</span>
@@ -301,24 +291,30 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
 
       {/* BOOKING & FARE ENGINE CARD */}
       {!activeRide && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Booking Form */}
-          <div className="lg:col-span-7 bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-2xl p-6 shadow-xl">
-            <h3 className="text-base font-black text-white flex items-center gap-2 mb-4 pb-2 border-b border-gray-800">
-              <MapPin className="w-4 h-4 text-emerald-400" />
-              Book a Seat in Dhaka Tesla Pool
-            </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Booking Form (7 Cols) */}
+          <div className="lg:col-span-7 bg-[#121216] border border-white/10 rounded-[32px] p-6 md:p-8 shadow-xl">
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-white/10">
+              <h3 className="text-lg font-extrabold text-white flex items-center gap-2.5">
+                <MapPin className="w-5 h-5 text-[#D2F832]" />
+                Book a Seat in Dhaka Tesla Pool
+              </h3>
+              <span className="text-xs font-mono text-[#D2F832] bg-[#D2F832]/10 px-2.5 py-0.5 rounded-full border border-[#D2F832]/20">
+                25% POOL DISCOUNT
+              </span>
+            </div>
 
-            <form onSubmit={handleBookRide} className="space-y-4">
+            <form onSubmit={handleBookRide} className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-mono text-gray-300 block mb-1">
+                  <label className="text-xs font-mono text-zinc-300 block mb-1.5">
                     Pickup Zone (Dhaka)
                   </label>
                   <select
                     value={pickupZone}
                     onChange={(e) => setPickupZone(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[#0A0A0E] border border-white/10 rounded-2xl px-4 py-3 text-xs font-mono text-white focus:outline-none focus:border-[#D2F832]"
                   >
                     {zones.map((z) => (
                       <option key={z.id} value={z.id}>
@@ -329,13 +325,13 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-gray-300 block mb-1">
+                  <label className="text-xs font-mono text-zinc-300 block mb-1.5">
                     Destination Zone
                   </label>
                   <select
                     value={destinationZone}
                     onChange={(e) => setDestinationZone(e.target.value)}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[#0A0A0E] border border-white/10 rounded-2xl px-4 py-3 text-xs font-mono text-white focus:outline-none focus:border-[#D2F832]"
                   >
                     {zones.map((z) => (
                       <option key={z.id} value={z.id}>
@@ -346,170 +342,192 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
                 </div>
               </div>
 
+              {/* Seats and Payment selector */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-mono text-gray-300 block mb-1">
-                    Requested Seats (Bullet has 3 max)
+                  <label className="text-xs font-mono text-zinc-300 block mb-1.5">
+                    Number of Seats
                   </label>
-                  <select
-                    value={requestedSeats}
-                    onChange={(e) => setRequestedSeats(Number(e.target.value))}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value={1}>1 Seat (Standard Commute)</option>
-                    <option value={2}>2 Seats (Pair)</option>
-                    <option value={3}>3 Seats (Entire Tesla)</option>
-                  </select>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[1, 2, 3].map((s) => (
+                      <button
+                        type="button"
+                        key={s}
+                        onClick={() => setRequestedSeats(s)}
+                        className={`py-2.5 rounded-xl text-xs font-mono font-bold transition-all border ${
+                          requestedSeats === s
+                            ? 'bg-[#D2F832] text-black border-[#D2F832]'
+                            : 'bg-black/50 text-zinc-400 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        {s} {s === 1 ? 'Seat' : 'Seats'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-gray-300 block mb-1">
+                  <label className="text-xs font-mono text-zinc-300 block mb-1.5">
                     Payment Method
                   </label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="TESLAPAY">TeslaPay Digital Wallet (Automated)</option>
-                    <option value="CASH">Cash on Drop-off (হাতে হাতে)</option>
-                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('TESLAPAY')}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all border ${
+                        paymentMethod === 'TESLAPAY'
+                          ? 'bg-[#D2F832] text-black border-[#D2F832]'
+                          : 'bg-black/50 text-zinc-400 border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5 fill-current" />
+                      <span>TeslaPay</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('CASH')}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all border ${
+                        paymentMethod === 'CASH'
+                          ? 'bg-white text-black border-white'
+                          : 'bg-black/50 text-zinc-400 border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <span>Cash</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
+              {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading || pickupZone === destinationZone}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black font-black text-sm tracking-wide transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                disabled={loading}
+                className="w-full bg-[#D2F832] hover:bg-[#c2e825] active:scale-[0.98] text-black font-extrabold py-4 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-xl shadow-[#D2F832]/20 transition-all cursor-pointer mt-6"
               >
-                <Car className="w-4 h-4" />
-                <span>{loading ? 'Finding Tesla...' : 'Request Ride & Match Pool'}</span>
+                <span>{loading ? 'Dispatched to Bullet...' : `Confirm & Request Pool Seat`}</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </form>
           </div>
 
-          {/* Live Hand-Calculable Fare Engine Breakdown */}
-          <div className="lg:col-span-5 bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+          {/* Fare Calculator & Savings Breakdown (5 Cols) */}
+          <div className="lg:col-span-5 bg-[#121216] border border-white/10 rounded-[32px] p-6 md:p-8 shadow-xl flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between pb-3 border-b border-gray-800">
-                <span className="text-xs font-mono font-bold text-gray-300 flex items-center gap-1.5">
-                  <Wallet className="w-4 h-4 text-cyan-400" />
-                  Transparent Fare Engine
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/10">
+                <span className="text-xs font-mono uppercase font-bold text-zinc-400">
+                  Fare Calculation Model
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/40">
-                  POYSHA ACCURATE
+                <span className="text-[11px] font-mono text-[#D2F832] bg-[#D2F832]/10 px-2 py-0.5 rounded-full">
+                  PRD Section 5
                 </span>
               </div>
 
               {estimate ? (
-                <div className="mt-4 space-y-3 font-mono text-xs">
-                  <div className="flex justify-between text-gray-400">
-                    <span>Direct Trip Distance:</span>
-                    <span className="text-white font-bold">{estimate.distanceKm.toFixed(1)} km</span>
+                <div className="space-y-4">
+                  <div className="bg-black/60 rounded-2xl p-4 border border-white/10">
+                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono mb-1">
+                      <span>Corridor Distance</span>
+                      <span className="text-white font-bold">{estimate.distanceKm.toFixed(1)} km</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono mb-1">
+                      <span>Base Fare</span>
+                      <span className="text-white font-bold">৳{estimate.pooledFare.baseFareBdt.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono mb-1">
+                      <span>Distance Charge</span>
+                      <span className="text-white font-bold">৳{estimate.pooledFare.distanceFareBdt.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-[#D2F832] font-mono font-bold pt-2 border-t border-white/10">
+                      <span>25% Pool Discount</span>
+                      <span>-৳{estimate.pooledFare.discountBdt.toFixed(2)}</span>
+                    </div>
                   </div>
 
-                  <div className="flex justify-between text-gray-400">
-                    <span>Base Flag-drop Fee:</span>
-                    <span className="text-white">৳{estimate.soloFare.baseFareBdt.toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-gray-400">
-                    <span>Distance Charge (৳15/km):</span>
-                    <span className="text-white">৳{estimate.soloFare.distanceFareBdt.toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-gray-400 pb-2 border-b border-gray-800">
-                    <span>Solo Standard Price:</span>
-                    <span className="line-through text-gray-500">৳{estimate.soloFare.finalFareBdt.toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-emerald-400 font-bold bg-emerald-950/40 p-2 rounded-lg border border-emerald-900/60">
-                    <span>Pooling Discount (25%):</span>
-                    <span>-৳{estimate.pooledFare.discountBdt.toFixed(2)}</span>
-                  </div>
-
-                  <div className="flex justify-between items-baseline pt-2">
-                    <span className="text-sm font-bold text-white">Estimated Pooled Fare:</span>
-                    <span className="text-2xl font-black text-emerald-400">
+                  {/* Highlight Final Fare Card */}
+                  <div className="bg-[#D2F832] text-black rounded-2xl p-5 shadow-lg">
+                    <div className="flex items-center justify-between text-xs font-bold text-black/75 mb-1">
+                      <span>POOLED PASSENGER FARE</span>
+                      <span className="text-[10px] font-mono bg-black/10 px-2 py-0.5 rounded">
+                        Integer Poysha
+                      </span>
+                    </div>
+                    <div className="text-3xl font-extrabold tracking-tight">
                       ৳{estimate.pooledFare.finalFareBdt.toFixed(2)}
-                    </span>
+                    </div>
+                    <div className="text-xs font-mono font-semibold text-black/70 mt-1">
+                      {Math.round(estimate.pooledFare.finalFareBdt * 100).toLocaleString()} Poysha (zero decimal drift)
+                    </div>
                   </div>
-
-                  <p className="text-[10px] text-gray-500 font-mono italic">
-                    {estimate.pooledFare.explanation}
-                  </p>
                 </div>
               ) : (
-                <div className="text-center py-10 text-gray-500 font-mono text-xs">
-                  Select pickup and destination to calculate fare
+                <div className="text-center py-12 text-zinc-500 font-mono text-xs">
+                  Select pickup and destination to calculate transparent Poysha fare split.
                 </div>
               )}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-400 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Money stored as integer Poysha (1 BDT = 100 Poysha) for zero rounding loss.</span>
+            <div className="pt-6 border-t border-white/10 mt-6 flex items-center justify-between text-xs font-mono text-zinc-400">
+              <span>Formula: Base + Dist - Discount</span>
+              <span className="text-[#D2F832] font-bold">৳1 = 100 Poysha</span>
             </div>
           </div>
+
         </div>
       )}
 
-      {/* RIDE HISTORY TABLE */}
-      <div className="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-2xl p-6 shadow-xl">
-        <h3 className="text-sm font-black text-white flex items-center gap-2 mb-4 font-mono">
-          <Clock className="w-4 h-4 text-cyan-400" />
-          {currentUser.name.split(' ')[0]}'s Ride History
+      {/* Commuter Ride History */}
+      <div className="bg-[#121216] border border-white/10 rounded-[32px] p-6 md:p-8 shadow-xl">
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2 mb-6">
+          <Clock className="w-5 h-5 text-[#D2F832]" />
+          <span>My Banani Ride History</span>
         </h3>
 
         {myHistory.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 font-mono text-xs">
-            No previous ride records found for this account.
-          </div>
+          <p className="text-xs text-zinc-500 font-mono py-8 text-center">
+            No previous ride records found for this commuter profile.
+          </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-mono text-xs">
-              <thead>
-                <tr className="border-b border-gray-800 text-gray-400">
-                  <th className="pb-2">Date / Time</th>
-                  <th className="pb-2">Route Corridor</th>
-                  <th className="pb-2">Seats</th>
-                  <th className="pb-2">Status</th>
-                  <th className="pb-2">Fare (BDT)</th>
-                  <th className="pb-2">Payment</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60">
-                {myHistory.map((ride) => (
-                  <tr key={ride.id} className="text-gray-300">
-                    <td className="py-2.5 text-gray-400">{ride.created_at}</td>
-                    <td className="py-2.5 font-bold text-white">
-                      {ride.pickup_zone} → {ride.destination_zone}
-                    </td>
-                    <td className="py-2.5">{ride.requested_seats}</td>
-                    <td className="py-2.5">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          ride.status === 'COMPLETED'
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
-                            : ride.status === 'CANCELLED'
-                            ? 'bg-rose-950 text-rose-400 border border-rose-800/60'
-                            : 'bg-cyan-950 text-cyan-400 border border-cyan-800/60'
-                        }`}
-                      >
-                        {ride.status}
-                      </span>
-                    </td>
-                    <td className="py-2.5 font-bold text-emerald-400">
+          <div className="space-y-3">
+            {myHistory.map((ride) => (
+              <div
+                key={ride.id}
+                className="bg-black/40 border border-white/5 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono text-xs hover:border-white/10 transition-colors"
+              >
+                <div>
+                  <div className="text-white font-bold text-sm">
+                    {ride.pickup_zone} → {ride.destination_zone}
+                  </div>
+                  <div className="text-[11px] text-zinc-400 mt-0.5">
+                    {new Date(ride.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {ride.requested_seats} Seat • {ride.payment_method}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 self-end sm:self-auto">
+                  <div className="text-right">
+                    <div className="text-sm font-extrabold text-[#D2F832]">
                       ৳{ride.final_fare_bdt.toFixed(2)}
-                    </td>
-                    <td className="py-2.5 text-gray-400">{ride.payment_method}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    <div className="text-[10px] text-zinc-400">
+                      {ride.final_fare_poysha.toLocaleString()} Poysha
+                    </div>
+                  </div>
+
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                    ride.status === 'COMPLETED'
+                      ? 'bg-[#D2F832]/15 text-[#D2F832] border border-[#D2F832]/30'
+                      : ride.status === 'CANCELLED'
+                      ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                      : 'bg-white/15 text-white'
+                  }`}>
+                    {ride.status}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
+
     </div>
   );
 };

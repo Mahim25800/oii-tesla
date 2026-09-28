@@ -1,89 +1,145 @@
 import React, { useState } from 'react';
+import { User } from '../types';
 import { ApiService } from '../lib/api';
-import { Wallet, X, Check, Sparkles } from 'lucide-react';
+import { Wallet, X, Zap, CheckCircle2, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface TopupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (newBalance: number) => void;
+  currentUser: User | null;
+  onSuccess: () => void;
 }
 
-export const TopupModal: React.FC<TopupModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [amount, setAmount] = useState(500);
+export const TopupModal: React.FC<TopupModalProps> = ({
+  isOpen,
+  onClose,
+  currentUser,
+  onSuccess
+}) => {
+  const [amountBdt, setAmountBdt] = useState<number>(200);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen || !currentUser) return null;
 
-  const handleTopup = async () => {
+  const currentBdt = currentUser.wallet_bdt.toFixed(2);
+  const quickAmounts = [100, 250, 500, 1000];
+
+  const handleTopup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (amountBdt <= 0) return;
+
     setLoading(true);
+    setMessage(null);
+
     try {
-      const res = await ApiService.topupWallet(amount);
+      await ApiService.topupWallet(amountBdt);
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-      onSuccess(res.wallet_bdt);
-      onClose();
+      setMessage(`Successfully added ৳${amountBdt.toFixed(2)} to TeslaPay!`);
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+        setMessage(null);
+      }, 900);
     } catch (err: any) {
-      alert(`Top-up error: ${err.message}`);
+      setMessage(`Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="bg-[#121216] border border-white/10 rounded-[32px] max-w-md w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+        
+        {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors cursor-pointer"
+          className="absolute top-6 right-6 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-            <Wallet className="w-5 h-5" />
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-2xl bg-[#D2F832] flex items-center justify-center text-black shadow-md shadow-[#D2F832]/20">
+            <Wallet className="w-5 h-5 fill-black" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Recharge TeslaPay Wallet</h3>
-            <p className="text-xs text-gray-400 font-mono">Simulated Dhaka digital payment</p>
+            <h3 className="text-xl font-black text-white">Recharge TeslaPay</h3>
+            <p className="text-xs text-zinc-400 font-mono">
+              Zero-fee cashless balance for Dhaka Tesla Pool
+            </p>
           </div>
         </div>
 
-        <div className="space-y-4 my-4">
-          <div className="grid grid-cols-3 gap-2">
-            {[100, 500, 1000].map((val) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => setAmount(val)}
-                className={`py-2 rounded-xl text-xs font-mono font-bold transition-all border cursor-pointer ${
-                  amount === val
-                    ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/30'
-                    : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'
-                }`}
-              >
-                +৳{val}
-              </button>
-            ))}
+        {/* Current Balance Display */}
+        <div className="bg-black/60 rounded-2xl p-4 border border-white/10 mb-6 flex items-center justify-between font-mono">
+          <div>
+            <span className="text-[10px] text-zinc-400 block uppercase">Current Balance</span>
+            <span className="text-2xl font-black text-[#D2F832]">৳{currentBdt}</span>
           </div>
+          <div className="text-right text-xs text-zinc-400">
+            <span>{currentUser.wallet_poysha.toLocaleString()} Poysha</span>
+          </div>
+        </div>
 
-          <div className="p-3 bg-gray-950 rounded-xl border border-gray-800 font-mono text-xs text-gray-400">
-            <span>Recharge Amount: </span>
-            <strong className="text-emerald-400 text-sm">৳{amount.toFixed(2)}</strong>
-            <div className="text-[10px] text-gray-500 mt-1">
-              Automated instant credit into account
+        {/* Form */}
+        <form onSubmit={handleTopup} className="space-y-5">
+          <div>
+            <label className="text-xs font-mono text-zinc-300 block mb-2">
+              Select Top-up Amount (BDT)
+            </label>
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              {quickAmounts.map((amt) => (
+                <button
+                  type="button"
+                  key={amt}
+                  onClick={() => setAmountBdt(amt)}
+                  className={`py-2 rounded-xl text-xs font-mono font-bold transition-all border ${
+                    amountBdt === amt
+                      ? 'bg-[#D2F832] text-black border-[#D2F832]'
+                      : 'bg-black/40 text-zinc-400 border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  +৳{amt}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 font-mono font-bold text-sm">
+                ৳
+              </span>
+              <input
+                type="number"
+                min="10"
+                step="10"
+                value={amountBdt}
+                onChange={(e) => setAmountBdt(Number(e.target.value))}
+                className="w-full bg-[#0A0A0E] border border-white/10 rounded-2xl pl-8 pr-4 py-3 text-sm font-mono text-white focus:outline-none focus:border-[#D2F832]"
+              />
             </div>
           </div>
 
+          {message && (
+            <div className="text-xs font-mono text-[#D2F832] bg-[#D2F832]/10 p-3 rounded-xl border border-[#D2F832]/20 text-center">
+              {message}
+            </div>
+          )}
+
           <button
-            onClick={handleTopup}
+            type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-black font-bold text-xs font-mono transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20"
+            className="w-full bg-[#D2F832] hover:bg-[#c2e825] active:scale-95 text-black font-extrabold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-xl shadow-[#D2F832]/20 transition-all cursor-pointer"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>{loading ? 'Processing...' : `Add ৳${amount} to TeslaPay`}</span>
+            <Zap className="w-4 h-4 fill-current" />
+            <span>{loading ? 'Recharging...' : `Add ৳${amountBdt.toFixed(2)} to TeslaPay`}</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
-        </div>
+        </form>
+
       </div>
     </div>
   );

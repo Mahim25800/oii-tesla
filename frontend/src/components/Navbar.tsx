@@ -1,13 +1,13 @@
 import React from 'react';
 import { User } from '../types';
-import { Zap, Wallet, Users, Radio, Car } from 'lucide-react';
+import { Zap, Wallet, Users, Radio, Car, ArrowUpRight, Compass, ShieldCheck } from 'lucide-react';
 
 interface NavbarProps {
   currentUser: User | null;
   demoUsers: User[];
   onSelectUser: (user: User) => void;
-  activeTab: 'PASSENGER' | 'DRIVER' | 'SIMULATION';
-  onSelectTab: (tab: 'PASSENGER' | 'DRIVER' | 'SIMULATION') => void;
+  activeTab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME';
+  onSelectTab: (tab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME') => void;
   onTopup: () => void;
   isWsConnected: boolean;
 }
@@ -22,102 +22,118 @@ export const Navbar: React.FC<NavbarProps> = ({
   isWsConnected
 }) => {
   return (
-    <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur-md sticky top-0 z-50 px-4 py-3">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+    <header className="sticky top-4 z-50 px-4 md:px-8 max-w-7xl mx-auto">
+      <div className="bg-[#121216]/80 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2.5 flex items-center justify-between shadow-2xl shadow-black/80">
         
-        {/* Brand identity */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Zap className="w-6 h-6 text-black fill-black" />
+        {/* Brand Logo with Electric Lime Squircle */}
+        <div 
+          onClick={() => onSelectTab('HOME')}
+          className="flex items-center gap-3 cursor-pointer group"
+        >
+          <div className="w-9 h-9 rounded-2xl bg-[#D2F832] flex items-center justify-center shadow-lg shadow-[#D2F832]/25 group-hover:scale-105 transition-transform">
+            <Zap className="w-5 h-5 text-black fill-black" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-black text-lg tracking-wider text-white">DHAKA TESLA POOL</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800/60 font-mono">
-                OI TESLA v1.0
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 font-mono">
-              Share a seat. Split the fare. Survive Dhaka traffic.
-            </p>
+          <div className="hidden sm:block">
+            <span className="font-extrabold text-sm tracking-tight text-white block">
+              DHAKA TESLA
+            </span>
+            <span className="text-[10px] text-zinc-400 font-mono flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${isWsConnected ? 'bg-[#D2F832]' : 'bg-amber-400'} animate-pulse`} />
+              Banani Corridor v1.0
+            </span>
           </div>
         </div>
 
-        {/* Story Cast Persona Switcher */}
-        <div className="flex items-center gap-1.5 bg-gray-900/90 border border-gray-800 p-1 rounded-xl">
-          <span className="text-[10px] uppercase font-bold text-gray-400 px-2 flex items-center gap-1">
-            <Users className="w-3 h-3 text-cyan-400" /> Story Cast:
-          </span>
-          {demoUsers.map((u) => {
-            const isSelected = currentUser?.id === u.id;
-            const firstName = u.name.split(' ')[0];
-            const isDriver = u.role === 'DRIVER';
-
-            return (
-              <button
-                key={u.id}
-                onClick={() => {
-                  onSelectUser(u);
-                  if (isDriver) onSelectTab('DRIVER');
-                  else onSelectTab('PASSENGER');
-                }}
-                className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5 ${
-                  isSelected
-                    ? isDriver
-                      ? 'bg-amber-500 text-black font-bold shadow-md shadow-amber-500/20'
-                      : 'bg-emerald-500 text-black font-bold shadow-md shadow-emerald-500/20'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                }`}
-              >
-                {isDriver ? <Car className="w-3.5 h-3.5" /> : null}
-                <span>{firstName}</span>
-                {isDriver && <span className="text-[10px] opacity-80">(Bullet)</span>}
-              </button>
-            );
-          })}
-
-          <div className="h-4 w-px bg-gray-700 mx-1" />
-
-          {/* Simulation God-View */}
+        {/* Center Pill Nav Links (Direct from Reference Style) */}
+        <nav className="hidden md:flex items-center gap-1 bg-black/40 border border-white/5 rounded-full px-2 py-1">
+          <button
+            onClick={() => onSelectTab('HOME')}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+              activeTab === 'HOME'
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => onSelectTab('PASSENGER')}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+              activeTab === 'PASSENGER'
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Passenger App
+          </button>
+          <button
+            onClick={() => onSelectTab('DRIVER')}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all ${
+              activeTab === 'DRIVER'
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Driver Cockpit
+          </button>
           <button
             onClick={() => onSelectTab('SIMULATION')}
-            className={`px-3 py-1 text-xs rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all flex items-center gap-1.5 ${
               activeTab === 'SIMULATION'
-                ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/20'
-                : 'text-cyan-400 hover:bg-cyan-950/40 border border-cyan-800/40'
+                ? 'bg-[#D2F832] text-black font-bold shadow-md shadow-[#D2F832]/20'
+                : 'text-[#D2F832] hover:bg-[#D2F832]/10'
             }`}
           >
             <Radio className="w-3.5 h-3.5 animate-pulse" />
-            <span>Rush-Hour Simulator</span>
+            <span>Rush-Hour Sim</span>
           </button>
-        </div>
+        </nav>
 
-        {/* User Status, Wallet & Live Connection */}
-        <div className="flex items-center gap-3">
+        {/* Story Cast Switcher & TeslaPay Wallet Pill */}
+        <div className="flex items-center gap-2">
+          {/* Quick Persona Pills */}
+          <div className="flex items-center gap-1 bg-black/50 border border-white/5 p-1 rounded-full">
+            {demoUsers.map((u) => {
+              const isSelected = currentUser?.id === u.id;
+              const firstName = u.name.split(' ')[0];
+              const isDriver = u.role === 'DRIVER';
+
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => {
+                    onSelectUser(u);
+                    if (isDriver) onSelectTab('DRIVER');
+                    else onSelectTab('PASSENGER');
+                  }}
+                  title={`${u.name} (${u.role})`}
+                  className={`px-3 py-1 text-xs rounded-full font-medium transition-all flex items-center gap-1 ${
+                    isSelected
+                      ? isDriver
+                        ? 'bg-[#D2F832] text-black font-bold shadow-sm'
+                        : 'bg-white text-black font-bold shadow-sm'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {isDriver ? <Car className="w-3 h-3" /> : null}
+                  <span>{firstName}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* TeslaPay Wallet Button (Electric Lime Pill like 'Google Play' button in reference) */}
           {currentUser && (
             <button
               onClick={onTopup}
-              title="Click to recharge TeslaPay wallet"
-              className="flex items-center gap-2 bg-gray-900 border border-emerald-900/60 hover:border-emerald-500 px-3 py-1.5 rounded-xl transition-all cursor-pointer group"
+              className="bg-[#D2F832] hover:bg-[#c2e825] active:scale-95 text-black font-bold text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all shadow-md shadow-[#D2F832]/25"
             >
-              <Wallet className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-              <div className="text-left font-mono">
-                <div className="text-[10px] text-gray-400 uppercase leading-none">TeslaPay Balance</div>
-                <div className="text-xs font-bold text-emerald-400 leading-tight">
-                  ৳{currentUser.wallet_bdt?.toFixed(2) || '0.00'}
-                </div>
-              </div>
+              <Wallet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline font-mono">৳{currentUser.wallet_bdt.toFixed(0)}</span>
+              <span className="sm:hidden">Pay</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           )}
-
-          {/* WebSocket Live Stream status badge */}
-          <div
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono bg-gray-900 border border-gray-800"
-            title={isWsConnected ? 'WebSocket live stream active' : 'Connecting to WebSocket'}
-          >
-            <div className={`w-2 h-2 rounded-full ${isWsConnected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
-            <span className="text-[11px] text-gray-400">{isWsConnected ? 'LIVE WS' : 'CONNECTING'}</span>
-          </div>
         </div>
 
       </div>
