@@ -7,7 +7,7 @@ interface NavbarProps {
   demoUsers: User[];
   onSelectUser: (user: User) => void;
   activeTab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME';
-  onSelectTab: (tab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME') => void;
+  onSelectTab: (tab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME', overrideUser?: User) => void;
   onTopup: () => void;
   isWsConnected: boolean;
 }
@@ -103,15 +103,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   key={u.id}
                   onClick={() => {
                     onSelectUser(u);
-                    if (isDriver) onSelectTab('DRIVER');
-                    else onSelectTab('PASSENGER');
+                    if (isDriver) onSelectTab('DRIVER', u);
+                    else onSelectTab('PASSENGER', u);
                   }}
                   title={`${u.name} (${u.role})`}
-                  className={`px-3 py-1 text-xs rounded-full font-medium transition-all flex items-center gap-1 ${
+                  className={`px-3 py-1 text-xs rounded-full font-semibold transition-colors flex items-center gap-1 shrink-0 ${
                     isSelected
                       ? isDriver
-                        ? 'bg-[#D2F832] text-black font-bold shadow-sm'
-                        : 'bg-white text-black font-bold shadow-sm'
+                        ? 'bg-[#D2F832] text-black shadow-sm'
+                        : 'bg-white text-black shadow-sm'
                       : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >

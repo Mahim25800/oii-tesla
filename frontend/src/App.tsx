@@ -103,7 +103,11 @@ export default function App() {
   // WebSocket Connection for real-time live push updates
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Connect directly to backend port 5000 in dev mode to eliminate Vite proxy socket churn
+    const wsHost = window.location.port === '3000'
+      ? `${window.location.hostname}:5000`
+      : window.location.host;
+    const wsUrl = `${protocol}//${wsHost}/ws`;
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
 
@@ -140,7 +144,7 @@ export default function App() {
       if (ws) ws.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [currentUser?.id]);
+  }, []);
 
   const handleSelectUser = (user: User) => {
     setCurrentUser(user);
@@ -149,8 +153,12 @@ export default function App() {
   };
 
   // Role-aware tab switcher: auto-switches user to match the chosen portal
-  const handleSelectTab = (tab: 'HOME' | 'PASSENGER' | 'DRIVER' | 'SIMULATION') => {
+  const handleSelectTab = (tab: 'HOME' | 'PASSENGER' | 'DRIVER' | 'SIMULATION', overrideUser?: User) => {
     setActiveTab(tab);
+    if (overrideUser) {
+      handleSelectUser(overrideUser);
+      return;
+    }
     if (tab === 'DRIVER' && currentUser?.role !== 'DRIVER') {
       const driver = demoUsers.find((u) => u.role === 'DRIVER') || DEFAULT_DEMO_USERS.find((u) => u.role === 'DRIVER');
       if (driver) {
@@ -173,7 +181,9 @@ export default function App() {
       setActivePool(pool);
       if (currentUser) {
         const updated = users.find(u => u.id === currentUser.id);
-        if (updated) setCurrentUser(updated);
+        if (updated && (updated.wallet_bdt !== currentUser.wallet_bdt || updated.token !== currentUser.token)) {
+          setCurrentUser(updated);
+        }
       }
     } catch (err) {
       console.error('Data refresh error:', err);
@@ -187,8 +197,13 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#09090B] text-zinc-100 flex flex-col selection:bg-[#D2F832] selection:text-black font-sans relative">
       
-      {/* Background Ambient Radial Glow */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[550px] bg-[#D2F832]/[0.08] blur-[150px] rounded-full pointer-events-none -z-10" />
+      {/* Background Ambient Radial Glow (Hardware-accelerated CSS gradient, zero subpixel blur jitter) */}
+      <div 
+        className="fixed inset-0 pointer-events-none -z-10"
+        style={{
+          background: 'radial-gradient(circle 750px at 50% 0%, rgba(210, 248, 50, 0.08) 0%, transparent 70%)'
+        }}
+      />
 
       {/* FLOATING PILL NAVBAR */}
       <Navbar

@@ -39,7 +39,12 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({
   return (
     <section className="relative pt-12 pb-20 px-4 md:px-8 max-w-7xl mx-auto overflow-hidden">
       {/* Background Ambient Radial Glow (from Reference) */}
-      <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[500px] bg-[#D2F832]/10 blur-[130px] rounded-full pointer-events-none -z-10" />
+      <div 
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[450px] pointer-events-none -z-10"
+        style={{
+          background: 'radial-gradient(circle 500px at 50% 30%, rgba(210, 248, 50, 0.08) 0%, transparent 70%)'
+        }}
+      />
 
       {/* Hero Headline Hierarchy */}
       <div className="text-center max-w-4xl mx-auto mb-14">
