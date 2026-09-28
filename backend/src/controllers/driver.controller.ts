@@ -33,7 +33,7 @@ export class DriverController {
         return;
       }
 
-      const updatedRide = PoolingService.driverAcceptRide(req.user.id, req.params.id);
+      const updatedRide = PoolingService.driverAcceptRide(req.user.id, req.params.id as string);
       res.json({
         message: 'Ride accepted into Dhaka Tesla Pool',
         ride: updatedRide
@@ -56,7 +56,7 @@ export class DriverController {
         return;
       }
 
-      const ride = PoolingService.markDriverArrived(req.user.id, req.params.id);
+      const ride = PoolingService.markDriverArrived(req.user.id, req.params.id as string);
       res.json({
         message: 'Driver arrival confirmed',
         ride
@@ -79,7 +79,7 @@ export class DriverController {
         return;
       }
 
-      const ride = PoolingService.startTrip(req.user.id, req.params.id);
+      const ride = PoolingService.startTrip(req.user.id, req.params.id as string);
       res.json({
         message: 'Trip started. Tesla Bullet rolling!',
         ride
@@ -102,7 +102,7 @@ export class DriverController {
         return;
       }
 
-      const ride = PoolingService.completeTrip(req.user.id, req.params.id);
+      const ride = PoolingService.completeTrip(req.user.id, req.params.id as string);
       res.json({
         message: 'Trip completed. Fare settled.',
         ride

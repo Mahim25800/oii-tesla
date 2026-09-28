@@ -75,7 +75,7 @@ export class RideController {
         return;
       }
 
-      const ride = PoolingService.getRideById(req.params.id);
+      const ride = PoolingService.getRideById(req.params.id as string);
       if (!ride) {
         res.status(404).json({ error: 'Ride request not found' });
         return;
@@ -115,7 +115,7 @@ export class RideController {
       }
 
       const { reason } = req.body;
-      const cancelledRide = PoolingService.cancelRide(req.user.id, req.params.id, reason);
+      const cancelledRide = PoolingService.cancelRide(req.user.id, req.params.id as string, reason);
       res.json({
         message: 'Ride request cancelled successfully',
         ride: cancelledRide
