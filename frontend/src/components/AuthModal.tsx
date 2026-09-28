@@ -143,8 +143,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <div>
             <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
               Dhaka Tesla Auth
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-zinc-300">
-                PRD Sec 3
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#D2F832]/20 text-[#D2F832] border border-[#D2F832]/30">
+                SECURE ACCESS
               </span>
             </h3>
             <p className="text-xs text-zinc-400">
