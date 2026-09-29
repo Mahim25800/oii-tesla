@@ -70,11 +70,11 @@ describe('Auth & User Lifecycle Endpoints', () => {
     expect(res.body.token).toBeDefined();
   });
 
-  it('rejects registration when name has less than 3 words', async () => {
+  it('rejects registration when name has less than 3 letters', async () => {
     const res = await request(app)
       .post('/api/auth/register')
       .send({
-        name: 'Tanvir Hasan', // only 2 words
+        name: 'Al', // only 2 letters
         email: 'tanvir.two@dhaka.tesla',
         phone: '01799887761',
         password: 'securePassword99',
@@ -83,7 +83,7 @@ describe('Auth & User Lifecycle Endpoints', () => {
       });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/at least 3 words/i);
+    expect(res.body.error).toMatch(/at least 3 letters/i);
   });
 
   it('rejects registration when phone is not 11 digits or has non-numbers', async () => {

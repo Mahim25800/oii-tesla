@@ -15,10 +15,10 @@ export class AuthController {
         return;
       }
 
-      // Name validation: must not be less than 3 words
-      const nameWords = typeof name === 'string' ? name.trim().split(/\s+/).filter(Boolean) : [];
-      if (nameWords.length < 3) {
-        res.status(400).json({ error: 'Validation Error: Name must contain at least 3 words (e.g. Md Tanvir Hasan)' });
+      // Name validation: must not be less than 3 letters
+      const cleanName = typeof name === 'string' ? name.trim() : '';
+      if (cleanName.length < 3) {
+        res.status(400).json({ error: 'Validation Error: Name must be at least 3 letters' });
         return;
       }
 

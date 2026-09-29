@@ -104,10 +104,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // 1. Name validation: must not be less than 3 words
-    const nameWords = name.trim().split(/\s+/).filter(Boolean);
-    if (nameWords.length < 3) {
-      setError('Full Name must contain at least 3 words (e.g. Md Tanvir Hasan)');
+    // 1. Name validation: must not be less than 3 letters
+    const trimmedName = name.trim();
+    if (trimmedName.length < 3) {
+      setError('Full Name must be at least 3 letters (e.g. Tanvir)');
       return;
     }
 
@@ -421,8 +421,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div>
               <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider flex items-center justify-between">
                 <span>Full Name</span>
-                <span className={`text-[10px] font-mono ${name.trim().split(/\s+/).filter(Boolean).length >= 3 ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                  {name.trim().split(/\s+/).filter(Boolean).length}/3 words min
+                <span className={`text-[10px] font-mono ${name.trim().length >= 3 ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                  {name.trim().length}/3 letters min
                 </span>
               </label>
               <div className="relative">
@@ -432,7 +432,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Md Tanvir Hasan"
+                  placeholder="e.g. Tanvir Ahmed"
                   className="w-full bg-black/50 border border-white/10 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#D2F832] transition-colors"
                 />
               </div>
