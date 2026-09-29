@@ -172,6 +172,11 @@ export default function App() {
     refreshData();
   };
 
+  const handleSignOut = () => {
+    handleSelectUser(null);
+    setActiveTab('HOME');
+  };
+
   const handleAuthSuccess = (user: User) => {
     setDemoUsers((prev) => {
       const exists = prev.some((u) => u.id === user.id);
@@ -249,6 +254,7 @@ export default function App() {
         onSelectTab={handleSelectTab}
         onTopup={() => setIsTopupOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onSignOut={handleSignOut}
         isWsConnected={isWsConnected}
       />
 
@@ -477,9 +483,7 @@ export default function App() {
         onClose={() => setIsAuthOpen(false)}
         onAuthSuccess={handleAuthSuccess}
         currentUser={currentUser}
-        onSignOut={() => {
-          setIsAuthOpen(true);
-        }}
+        onSignOut={handleSignOut}
       />
 
       {/* TOP-UP MODAL */}

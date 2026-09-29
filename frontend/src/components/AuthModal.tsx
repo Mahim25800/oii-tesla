@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { ApiService } from '../lib/api';
-import { Zap, X, Car, User as UserIcon, Lock, Mail, Phone, ArrowRight, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Zap, X, Car, User as UserIcon, Lock, Mail, Phone, ArrowRight, ShieldCheck, Sparkles, CheckCircle2, LogOut } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface AuthModalProps {
@@ -222,11 +222,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 type="button"
                 onClick={() => {
                   onSignOut();
-                  onClose();
+                  resetForm();
+                  setSuccessMsg('Successfully signed out');
+                  setTimeout(() => setSuccessMsg(null), 2500);
                 }}
-                className="text-[11px] font-mono text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors border border-rose-500/20"
+                className="text-[11px] font-mono text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors border border-rose-500/20 flex items-center gap-1.5"
               >
-                Sign Out
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
               </button>
             )}
           </div>

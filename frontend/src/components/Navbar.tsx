@@ -1,6 +1,6 @@
 import React from 'react';
 import { User } from '../types';
-import { Zap, Wallet, Users, Radio, Car, ArrowUpRight, Compass, ShieldCheck, UserCircle } from 'lucide-react';
+import { Zap, Wallet, Users, Radio, Car, ArrowUpRight, Compass, ShieldCheck, UserCircle, LogOut } from 'lucide-react';
 
 interface NavbarProps {
   currentUser: User | null;
@@ -10,6 +10,7 @@ interface NavbarProps {
   onSelectTab: (tab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME', overrideUser?: User) => void;
   onTopup: () => void;
   onOpenAuth: () => void;
+  onSignOut?: () => void;
   isWsConnected: boolean;
 }
 
@@ -21,6 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTab,
   onTopup,
   onOpenAuth,
+  onSignOut,
   isWsConnected
 }) => {
   return (
@@ -129,6 +131,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Switch
               </button>
+
+              {onSignOut && (
+                <button
+                  onClick={onSignOut}
+                  title="Sign Out of Dhaka Tesla"
+                  className="text-[11px] font-mono text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 px-2 py-0.5 rounded-full transition-colors border-l border-white/10 pl-2 flex items-center gap-1"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </button>
+              )}
             </div>
           ) : (
             /* Sign In / Register Trigger when logged out */
