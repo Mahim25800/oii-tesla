@@ -530,15 +530,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             </div>
 
-            {/* Perk Highlight */}
-            <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#D2F832] shrink-0" />
-              <span>
-                {role === 'PASSENGER'
-                  ? 'Includes ৳500 TeslaPay bonus credit on registration'
-                  : 'Auto-provisions a Dhaka Tesla (3 seats, 85% battery, Online)'}
-              </span>
-            </div>
+            {/* Perk Highlight (Passenger only) */}
+            {role === 'PASSENGER' && (
+              <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#D2F832] shrink-0" />
+                <span>Includes ৳500 TeslaPay bonus credit on registration</span>
+              </div>
+            )}
 
             <button
               type="submit"
