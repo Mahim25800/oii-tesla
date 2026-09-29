@@ -42,32 +42,25 @@ export class FareEngine {
     const seats = Math.max(1, input.requestedSeats || 1);
     const distanceKm = getZoneDistance(input.pickupZoneId, input.destinationZoneId);
 
-    // 1. Base fare (flag-drop): 30 BDT (3,000 Poysha)
+    /* --- Integer Poysha Computation (Exact Currency Representation) --- */
     const baseFarePoysha = CONFIG.FARE.BASE_FARE_POYSHA;
-
-    // 2. Distance charge: 15 BDT/km (1,500 Poysha/km)
     const distanceFarePoysha = Math.round(distanceKm * CONFIG.FARE.RATE_PER_KM_POYSHA);
-
-    // 3. Subtotal before pooling discount
     let subtotalPoysha = baseFarePoysha + distanceFarePoysha;
 
-    // Multi-seat adjustment (if booking 2+ seats)
     if (seats > 1) {
       subtotalPoysha = Math.round(subtotalPoysha * (1 + (seats - 1) * 0.7));
     }
 
-    // 4. Pooling discount calculation
     const isPooled = Boolean(input.isPooled);
     let discountPercent = 0;
     let discountPoysha = 0;
 
     if (isPooled) {
-      // 25% standard discount for sharing a ride in Dhaka Tesla Pool
       discountPercent = CONFIG.FARE.POOL_DISCOUNT_PERCENT;
       discountPoysha = Math.round(subtotalPoysha * (discountPercent / 100));
     }
 
-    // 5. Final Fare (subject to minimum fare guarantee)
+    // Minimum fare guarantee prevents negative or zero fare edge cases
     const rawFinalFare = subtotalPoysha - discountPoysha;
     const finalFarePoysha = Math.max(CONFIG.FARE.MINIMUM_FARE_POYSHA, rawFinalFare);
 

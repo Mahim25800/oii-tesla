@@ -43,7 +43,7 @@ export class RideController {
         return;
       }
 
-      const { pickupZone, destinationZone, requestedSeats = 1, paymentMethod = 'TESLAPAY' } = req.body;
+      const { pickupZone, destinationZone, requestedSeats = 1, paymentMethod = 'TESLAPAY', autoPool = false } = req.body;
       if (!pickupZone || !destinationZone) {
         res.status(400).json({ error: 'Pickup and destination zones are required' });
         return;
@@ -54,7 +54,8 @@ export class RideController {
         pickupZone,
         destinationZone,
         requestedSeats: Number(requestedSeats),
-        paymentMethod
+        paymentMethod,
+        autoPool: Boolean(autoPool)
       });
 
       res.status(201).json({
@@ -75,7 +76,7 @@ export class RideController {
         return;
       }
 
-      const ride = PoolingService.getRideById(req.params.id);
+      const ride = PoolingService.getRideById(req.params.id as string);
       if (!ride) {
         res.status(404).json({ error: 'Ride request not found' });
         return;
@@ -115,7 +116,7 @@ export class RideController {
       }
 
       const { reason } = req.body;
-      const cancelledRide = PoolingService.cancelRide(req.user.id, req.params.id, reason);
+      const cancelledRide = PoolingService.cancelRide(req.user.id, req.params.id as string, reason);
       res.json({
         message: 'Ride request cancelled successfully',
         ride: cancelledRide

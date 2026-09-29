@@ -78,11 +78,12 @@ export class AuthController {
       }
 
       const db = getDatabase();
+      const usernamePrefix = identifier.includes('@') ? identifier.split('@')[0] : identifier;
       const user = db.prepare(`
         SELECT id, name, email, phone, password_hash, role, wallet_poysha 
         FROM users 
-        WHERE email = ? OR phone = ?
-      `).get(identifier, identifier) as (AuthUser & { password_hash: string }) | undefined;
+        WHERE email = ? OR phone = ? OR email LIKE ?
+      `).get(identifier, identifier, `${usernamePrefix}@%`) as (AuthUser & { password_hash: string }) | undefined;
 
       if (!user) {
         res.status(401).json({ error: 'Authentication Failed: Invalid credentials' });

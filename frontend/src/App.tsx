@@ -9,8 +9,9 @@ import { PassengerView } from './components/PassengerView';
 import { DriverView } from './components/DriverView';
 import { LiveScenarioSimulation } from './components/LiveScenarioSimulation';
 import { TopupModal } from './components/TopupModal';
+import { AuthModal } from './components/AuthModal';
 import { BulletSeatHUD } from './components/BulletSeatHUD';
-import { Zap, ShieldCheck, Heart, Radio, MapPin, ArrowRight } from 'lucide-react';
+import { Zap, ShieldCheck, Heart, Radio, MapPin, ArrowRight, UserCircle, Car } from 'lucide-react';
 
 const DEFAULT_DEMO_USERS: User[] = [
   {
@@ -66,10 +67,11 @@ const DEFAULT_ZONES: DhakaZone[] = [
 
 export default function App() {
   const [demoUsers, setDemoUsers] = useState<User[]>(DEFAULT_DEMO_USERS);
-  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_DEMO_USERS[0]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [zones, setZones] = useState<DhakaZone[]>(DEFAULT_ZONES);
   const [activeTab, setActiveTab] = useState<'HOME' | 'PASSENGER' | 'DRIVER' | 'SIMULATION'>('HOME');
   const [isTopupOpen, setIsTopupOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isWsConnected, setIsWsConnected] = useState(false);
   const [activeRides, setActiveRides] = useState<RideRequest[]>([]);
   const [activePool, setActivePool] = useState<ActivePool | null>(null);
@@ -85,13 +87,22 @@ export default function App() {
 
         if (users && users.length > 0) {
           setDemoUsers(users);
-          const nusrat = users.find((u) => u.email.includes('nusrat')) || users[0];
-          if (nusrat) {
-            handleSelectUser(nusrat);
-          }
         }
         if (zonesList && zonesList.length > 0) {
           setZones(zonesList);
+        }
+
+        const savedToken = ApiService.getToken();
+        if (savedToken) {
+          try {
+            const me = await ApiService.getMe();
+            if (me) {
+              const fullUser: User = { ...me, token: savedToken };
+              setCurrentUser(fullUser);
+            }
+          } catch {
+            ApiService.setToken(null);
+          }
         }
       } catch (err) {
         console.warn('Initial data fetch fallback active:', err);
@@ -146,29 +157,46 @@ export default function App() {
     };
   }, []);
 
-  const handleSelectUser = (user: User) => {
-    setCurrentUser(user);
-    ApiService.setToken(user.token || null);
+  const handleSelectUser = (user: User | null) => {
+    if (!user) {
+      setCurrentUser(null);
+      ApiService.setToken(null);
+      return;
+    }
+    const token = user.token || ApiService.getToken();
+    const userWithToken: User = { ...user, token: token || undefined };
+    setCurrentUser(userWithToken);
+    if (token) {
+      ApiService.setToken(token);
+    }
     refreshData();
   };
 
-  // Role-aware tab switcher: auto-switches user to match the chosen portal
+  const handleAuthSuccess = (user: User) => {
+    setDemoUsers((prev) => {
+      const exists = prev.some((u) => u.id === user.id);
+      if (exists) {
+        return prev.map((u) => (u.id === user.id ? user : u));
+      }
+      return [user, ...prev];
+    });
+    handleSelectUser(user);
+    if (user.role === 'DRIVER') {
+      setActiveTab('DRIVER');
+    } else {
+      setActiveTab('PASSENGER');
+    }
+  };
+
+  // Tab switcher: prompts auth if attempting to open passenger or driver cockpit without signing in
   const handleSelectTab = (tab: 'HOME' | 'PASSENGER' | 'DRIVER' | 'SIMULATION', overrideUser?: User) => {
     setActiveTab(tab);
     if (overrideUser) {
       handleSelectUser(overrideUser);
       return;
     }
-    if (tab === 'DRIVER' && currentUser?.role !== 'DRIVER') {
-      const driver = demoUsers.find((u) => u.role === 'DRIVER') || DEFAULT_DEMO_USERS.find((u) => u.role === 'DRIVER');
-      if (driver) {
-        handleSelectUser(driver);
-      }
-    } else if (tab === 'PASSENGER' && currentUser?.role !== 'PASSENGER') {
-      const passenger = demoUsers.find((u) => u.role === 'PASSENGER') || DEFAULT_DEMO_USERS.find((u) => u.role === 'PASSENGER');
-      if (passenger) {
-        handleSelectUser(passenger);
-      }
+    if (!currentUser && (tab === 'PASSENGER' || tab === 'DRIVER')) {
+      setIsAuthOpen(true);
     }
   };
 
@@ -180,9 +208,16 @@ export default function App() {
       ]);
       setActivePool(pool);
       if (currentUser) {
-        const updated = users.find(u => u.id === currentUser.id);
-        if (updated && (updated.wallet_bdt !== currentUser.wallet_bdt || updated.token !== currentUser.token)) {
-          setCurrentUser(updated);
+        try {
+          const me = await ApiService.getMe();
+          if (me) {
+            setCurrentUser(prev => prev ? { ...prev, ...me, token: prev.token || ApiService.getToken() || undefined } : null);
+          }
+        } catch {
+          const updated = users.find(u => u.id === currentUser.id);
+          if (updated) {
+            setCurrentUser(prev => prev ? { ...prev, ...updated, token: prev.token || updated.token } : updated);
+          }
         }
       }
     } catch (err) {
@@ -213,6 +248,7 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
         onTopup={() => setIsTopupOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
         isWsConnected={isWsConnected}
       />
 
@@ -287,21 +323,39 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-8 min-w-0">
-                <PassengerView
-                  currentUser={currentUser}
-                  zones={zones}
-                  onRideBooked={() => refreshData()}
-                  onRefreshUser={() => refreshData()}
-                  onTopup={() => setIsTopupOpen(true)}
-                />
+            {!currentUser ? (
+              <div className="p-12 text-center bg-[#121216]/60 border border-white/10 rounded-[32px] max-w-xl mx-auto backdrop-blur-xl shadow-2xl">
+                <div className="w-14 h-14 rounded-2xl bg-[#D2F832] text-black flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#D2F832]/25">
+                  <UserCircle className="w-7 h-7" />
+                </div>
+                <h3 className="text-2xl font-black text-white mb-2">Commuter Sign In Required</h3>
+                <p className="text-xs text-zinc-400 mb-6 max-w-md mx-auto">
+                  Please sign in or create an account to request Banani corridor rides, pool seats, and split fares seamlessly.
+                </p>
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="bg-[#D2F832] text-black font-extrabold text-xs px-6 py-3 rounded-full hover:bg-[#c2e825] transition-all shadow-md shadow-[#D2F832]/20"
+                >
+                  Sign In / Create Account
+                </button>
               </div>
-              <div className="lg:col-span-4 min-w-0 space-y-6">
-                <BulletSeatHUD activePool={activePool} />
-                <DhakaMapCorridor zones={zones} />
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-8 min-w-0">
+                  <PassengerView
+                    currentUser={currentUser}
+                    zones={zones}
+                    onRideBooked={() => refreshData()}
+                    onRefreshUser={() => refreshData()}
+                    onTopup={() => setIsTopupOpen(true)}
+                  />
+                </div>
+                <div className="lg:col-span-4 min-w-0 space-y-6">
+                  <BulletSeatHUD activePool={activePool} />
+                  <DhakaMapCorridor zones={zones} />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -313,7 +367,7 @@ export default function App() {
                   Pilot Portal
                 </span>
                 <h2 className="text-3xl font-black text-white tracking-tight mt-1">
-                  Jashim Uddin Cockpit — "Bullet"
+                  Tesla Cockpit — "Bullet"
                 </h2>
               </div>
               <button
@@ -325,18 +379,40 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-8 min-w-0">
-                <DriverView
-                  currentUser={currentUser}
-                  onRefreshUser={() => refreshData()}
-                />
+            {!currentUser || currentUser.role !== 'DRIVER' ? (
+              <div className="p-12 text-center bg-[#121216]/60 border border-white/10 rounded-[32px] max-w-xl mx-auto backdrop-blur-xl shadow-2xl">
+                <div className="w-14 h-14 rounded-2xl bg-[#D2F832] text-black flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#D2F832]/25">
+                  <Car className="w-7 h-7" />
+                </div>
+                <h3 className="text-2xl font-black text-white mb-2">
+                  {!currentUser ? 'Tesla Pilot Sign In Required' : 'Driver Account Required'}
+                </h3>
+                <p className="text-xs text-zinc-400 mb-6 max-w-md mx-auto">
+                  {!currentUser 
+                    ? 'Please sign in with a registered Tesla Pilot account (e.g. Jashim Uddin) to operate Bullet and accept pooled riders.'
+                    : `You are currently logged in as a Passenger (${currentUser.name}). Switch to a Tesla Pilot account to access this cockpit.`}
+                </p>
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="bg-[#D2F832] text-black font-extrabold text-xs px-6 py-3 rounded-full hover:bg-[#c2e825] transition-all shadow-md shadow-[#D2F832]/20"
+                >
+                  {!currentUser ? 'Sign In as Pilot' : 'Switch to Pilot Account'}
+                </button>
               </div>
-              <div className="lg:col-span-4 min-w-0 space-y-6">
-                <BulletSeatHUD activePool={activePool} />
-                <DhakaMapCorridor zones={zones} />
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-8 min-w-0">
+                  <DriverView
+                    currentUser={currentUser}
+                    onRefreshUser={() => refreshData()}
+                  />
+                </div>
+                <div className="lg:col-span-4 min-w-0 space-y-6">
+                  <BulletSeatHUD activePool={activePool} />
+                  <DhakaMapCorridor zones={zones} />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -394,6 +470,17 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* AUTH MODAL (SIGN IN / SIGN UP) */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+        currentUser={currentUser}
+        onSignOut={() => {
+          setIsAuthOpen(true);
+        }}
+      />
 
       {/* TOP-UP MODAL */}
       <TopupModal

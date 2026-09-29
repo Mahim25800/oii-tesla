@@ -35,7 +35,7 @@ describe('Concurrency & Race Condition Invariant Tests', () => {
     const rafiqRes = await request(app)
       .post('/api/rides')
       .set('Authorization', `Bearer ${rafiqToken}`)
-      .send({ pickupZone: 'BANANI', destinationZone: 'GULSHAN_1', requestedSeats: 1 });
+      .send({ pickupZone: 'BANANI', destinationZone: 'GULSHAN_1', requestedSeats: 1, autoPool: true });
     expect(rafiqRes.body.ride.status).toBe('MATCHED');
 
     // Verify Bullet has exactly 1 seat left
@@ -63,11 +63,11 @@ describe('Concurrency & Race Condition Invariant Tests', () => {
       request(app)
         .post('/api/rides')
         .set('Authorization', `Bearer ${shirinToken}`)
-        .send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI', requestedSeats: 1 }),
+        .send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI', requestedSeats: 1, autoPool: true }),
       request(app)
         .post('/api/rides')
         .set('Authorization', `Bearer ${kamalToken}`)
-        .send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI', requestedSeats: 1 })
+        .send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI', requestedSeats: 1, autoPool: true })
     ]);
 
     expect(competingReq1.status).toBe(201);
@@ -101,8 +101,8 @@ describe('Concurrency & Race Condition Invariant Tests', () => {
     const r1 = await request(app).post('/api/rides').set('Authorization', `Bearer ${nusratToken}`).send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI' });
     await request(app).post(`/api/driver/rides/${r1.body.ride.id}/accept`).set('Authorization', `Bearer ${jashimToken}`);
 
-    const r2 = await request(app).post('/api/rides').set('Authorization', `Bearer ${rafiqToken}`).send({ pickupZone: 'BANANI', destinationZone: 'GULSHAN_1' });
-    const r3 = await request(app).post('/api/rides').set('Authorization', `Bearer ${shirinToken}`).send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI' });
+    const r2 = await request(app).post('/api/rides').set('Authorization', `Bearer ${rafiqToken}`).send({ pickupZone: 'BANANI', destinationZone: 'GULSHAN_1', autoPool: true });
+    const r3 = await request(app).post('/api/rides').set('Authorization', `Bearer ${shirinToken}`).send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI', autoPool: true });
 
     // Both r2 and r3 got matched, filling all 3 seats
     const pool = await request(app).get('/api/driver/active-pool').set('Authorization', `Bearer ${jashimToken}`);

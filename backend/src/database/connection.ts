@@ -1,11 +1,72 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { CONFIG } from '../config/index.js';
 import fs from 'fs';
 import path from 'path';
 
-let dbInstance: Database.Database | null = null;
+export interface PreparedStatement {
+  get(...params: any[]): any;
+  all(...params: any[]): any[];
+  run(...params: any[]): { changes: number | bigint; lastInsertRowid: number | bigint };
+}
 
-export function getDatabase(dbPath?: string): Database.Database {
+export interface DatabaseConnection {
+  exec(sql: string): any;
+  pragma(sql: string): any;
+  prepare(sql: string): PreparedStatement;
+  transaction<T extends (...args: any[]) => any>(fn: T): T;
+  close(): void;
+}
+
+class NodeSqliteDatabase implements DatabaseConnection {
+  private raw: DatabaseSync;
+
+  constructor(filePath: string) {
+    this.raw = new DatabaseSync(filePath);
+  }
+
+  exec(sql: string): any {
+    return this.raw.exec(sql);
+  }
+
+  pragma(sql: string): any {
+    return this.raw.exec(`PRAGMA ${sql};`);
+  }
+
+  prepare(sql: string): PreparedStatement {
+    const stmt = this.raw.prepare(sql);
+    return {
+      get: (...params: any[]) => stmt.get(...params),
+      all: (...params: any[]) => stmt.all(...params),
+      run: (...params: any[]) => stmt.run(...params)
+    };
+  }
+
+  transaction<T extends (...args: any[]) => any>(fn: T): T {
+    return ((...args: any[]) => {
+      this.raw.exec('BEGIN IMMEDIATE;');
+      try {
+        const result = fn(...args);
+        this.raw.exec('COMMIT;');
+        return result;
+      } catch (err) {
+        try {
+          this.raw.exec('ROLLBACK;');
+        } catch (_) {}
+        throw err;
+      }
+    }) as T;
+  }
+
+  close(): void {
+    try {
+      this.raw.close();
+    } catch (_) {}
+  }
+}
+
+let dbInstance: DatabaseConnection | null = null;
+
+export function getDatabase(dbPath?: string): DatabaseConnection {
   if (!dbInstance) {
     const file = dbPath || CONFIG.DB_FILE;
     const dir = path.dirname(file);
@@ -13,8 +74,8 @@ export function getDatabase(dbPath?: string): Database.Database {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    dbInstance = new Database(file);
-    
+    dbInstance = new NodeSqliteDatabase(file);
+
     // Enable SQLite WAL (Write-Ahead Logging) for superior concurrent read/write throughput
     dbInstance.pragma('journal_mode = WAL');
     // Enforce Foreign Key constraints unconditionally
@@ -34,7 +95,7 @@ export function closeDatabase(): void {
   }
 }
 
-export function resetDatabase(dbPath?: string): Database.Database {
+export function resetDatabase(dbPath?: string): DatabaseConnection {
   closeDatabase();
   const file = dbPath || CONFIG.DB_FILE;
   if (fs.existsSync(file)) {
@@ -43,7 +104,7 @@ export function resetDatabase(dbPath?: string): Database.Database {
   return getDatabase(file);
 }
 
-export function initSchema(db: Database.Database): void {
+export function initSchema(db: DatabaseConnection): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,

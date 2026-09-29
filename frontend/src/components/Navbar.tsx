@@ -1,6 +1,6 @@
 import React from 'react';
 import { User } from '../types';
-import { Zap, Wallet, Users, Radio, Car, ArrowUpRight, Compass, ShieldCheck } from 'lucide-react';
+import { Zap, Wallet, Users, Radio, Car, ArrowUpRight, Compass, ShieldCheck, UserCircle } from 'lucide-react';
 
 interface NavbarProps {
   currentUser: User | null;
@@ -9,6 +9,7 @@ interface NavbarProps {
   activeTab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME';
   onSelectTab: (tab: 'PASSENGER' | 'DRIVER' | 'SIMULATION' | 'HOME', overrideUser?: User) => void;
   onTopup: () => void;
+  onOpenAuth: () => void;
   isWsConnected: boolean;
 }
 
@@ -19,6 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
   onTopup,
+  onOpenAuth,
   isWsConnected
 }) => {
   return (
@@ -89,40 +91,58 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* Story Cast Switcher & TeslaPay Wallet Pill */}
+        {/* Active Account Profile Pill & TeslaPay Wallet */}
         <div className="flex items-center gap-2">
-          {/* Quick Persona Pills */}
-          <div className="flex items-center gap-1 bg-black/50 border border-white/5 p-1 rounded-full">
-            {demoUsers.map((u) => {
-              const isSelected = currentUser?.id === u.id;
-              const firstName = u.name.split(' ')[0];
-              const isDriver = u.role === 'DRIVER';
+          {currentUser ? (
+            /* Logged-In User Profile Pill (Displays the specific logged-in account) */
+            <div className="flex items-center bg-black/50 border border-white/10 rounded-full p-1 pl-1.5 pr-2 gap-2 shadow-inner">
+              <button
+                onClick={onOpenAuth}
+                title="Account Profile - Click to switch account"
+                className="flex items-center gap-2 text-xs hover:opacity-85 transition-opacity"
+              >
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  currentUser.role === 'DRIVER' 
+                    ? 'bg-[#D2F832] text-black shadow-sm shadow-[#D2F832]/30' 
+                    : 'bg-white/20 text-white'
+                }`}>
+                  {currentUser.role === 'DRIVER' ? <Car className="w-3.5 h-3.5" /> : <UserCircle className="w-3.5 h-3.5" />}
+                </div>
+                <div className="text-left flex items-center gap-1.5">
+                  <span className="font-semibold text-white max-w-[120px] truncate block text-xs">
+                    {currentUser.name}
+                  </span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
+                    currentUser.role === 'DRIVER'
+                      ? 'bg-[#D2F832]/20 text-[#D2F832]'
+                      : 'bg-white/10 text-zinc-300'
+                  }`}>
+                    {currentUser.role === 'DRIVER' ? 'Pilot' : 'Pass'}
+                  </span>
+                </div>
+              </button>
 
-              return (
-                <button
-                  key={u.id}
-                  onClick={() => {
-                    onSelectUser(u);
-                    if (isDriver) onSelectTab('DRIVER', u);
-                    else onSelectTab('PASSENGER', u);
-                  }}
-                  title={`${u.name} (${u.role})`}
-                  className={`px-3 py-1 text-xs rounded-full font-semibold transition-colors flex items-center gap-1 shrink-0 ${
-                    isSelected
-                      ? isDriver
-                        ? 'bg-[#D2F832] text-black shadow-sm'
-                        : 'bg-white text-black shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  {isDriver ? <Car className="w-3 h-3" /> : null}
-                  <span>{firstName}</span>
-                </button>
-              );
-            })}
-          </div>
+              <button
+                onClick={onOpenAuth}
+                title="Switch Account / Sign In"
+                className="text-[11px] font-mono text-zinc-400 hover:text-white px-2 py-0.5 rounded-full hover:bg-white/10 transition-colors border-l border-white/10 pl-2"
+              >
+                Switch
+              </button>
+            </div>
+          ) : (
+            /* Sign In / Register Trigger when logged out */
+            <button
+              onClick={onOpenAuth}
+              className="bg-white/10 hover:bg-white/15 active:scale-95 text-white border border-white/10 font-bold text-xs px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all shadow-sm"
+              title="Sign in or register an account"
+            >
+              <UserCircle className="w-3.5 h-3.5 text-[#D2F832]" />
+              <span>Sign In / Register</span>
+            </button>
+          )}
 
-          {/* TeslaPay Wallet Button (Electric Lime Pill like 'Google Play' button in reference) */}
+          {/* TeslaPay Wallet Button */}
           {currentUser && (
             <button
               onClick={onTopup}

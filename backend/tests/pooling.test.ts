@@ -77,7 +77,7 @@ describe('Banani Rush-Hour Pooling & Invariant Tests', () => {
     const rafiqRes = await request(app)
       .post('/api/rides')
       .set('Authorization', `Bearer ${rafiqToken}`)
-      .send({ pickupZone: 'BANANI', destinationZone: 'GULSHAN_1', requestedSeats: 1 });
+      .send({ pickupZone: 'BANANI', destinationZone: 'GULSHAN_1', requestedSeats: 1, autoPool: true });
 
     expect(rafiqRes.status).toBe(201);
     // Should be automatically matched into the active Banani corridor pool!
@@ -108,13 +108,13 @@ describe('Banani Rush-Hour Pooling & Invariant Tests', () => {
     await request(app)
       .post('/api/rides')
       .set('Authorization', `Bearer ${rafiqToken}`)
-      .send({ pickupZone: 'BANANI', destinationZone: 'GULSHAN_1', requestedSeats: 1 });
+      .send({ pickupZone: 'BANANI', destinationZone: 'GULSHAN_1', requestedSeats: 1, autoPool: true });
 
     // Seat 3: Shirin grabs the last 1 seat
     const shirinRes = await request(app)
       .post('/api/rides')
       .set('Authorization', `Bearer ${shirinToken}`)
-      .send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI', requestedSeats: 1 });
+      .send({ pickupZone: 'BANANI', destinationZone: 'MOHAKHALI', requestedSeats: 1, autoPool: true });
 
     expect(shirinRes.body.ride.status).toBe('MATCHED');
 

@@ -5,5 +5,8 @@ export default defineConfig({
     fileParallelism: false,
     isolate: true,
     testTimeout: 10000,
+    env: {
+      DB_FILE: 'dhaka_tesla_test.sqlite',
+    },
   },
 });

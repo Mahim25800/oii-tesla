@@ -33,7 +33,6 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
   onRefreshUser,
   onTopup
 }) => {
-  // Defaults customized to persona: Nusrat prefers Mohakhali, Rafiq prefers Gulshan 1
   const defaultDest = currentUser.email.includes('rafiq') ? 'GULSHAN_1' : 'MOHAKHALI';
 
   const [pickupZone, setPickupZone] = useState('BANANI');
@@ -54,7 +53,6 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
   const [cancelling, setCancelling] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Sync destination if persona changes
   useEffect(() => {
     if (currentUser.email.includes('rafiq')) {
       setDestinationZone('GULSHAN_1');
@@ -63,25 +61,94 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
     }
   }, [currentUser.id]);
 
-  // Fetch estimate whenever zones or seats change
-  useEffect(() => {
-    async function fetchEstimate() {
-      if (pickupZone === destinationZone) {
-        setEstimate(null);
-        return;
-      }
-      try {
-        const est = await ApiService.estimateFare(pickupZone, destinationZone, requestedSeats);
-        setEstimate(est);
-      } catch (err) {
-        console.error('Error getting fare estimate:', err);
-      }
-    }
-    fetchEstimate();
-  }, [pickupZone, destinationZone, requestedSeats]);
+  /* --- Deterministic Haversine & Integer Poysha Local Estimator --- */
+  const computeLocalEstimate = (pickupId: string, destId: string, seats: number) => {
+    const pZone = zones.find((z) => z.id === pickupId);
+    const dZone = zones.find((z) => z.id === destId);
+    let distanceKm = 3.2;
 
-  // Load active ride & history
+    if (pZone && dZone) {
+      const R = 6371;
+      const dLat = ((dZone.latitude - pZone.latitude) * Math.PI) / 180;
+      const dLng = ((dZone.longitude - pZone.longitude) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((pZone.latitude * Math.PI) / 180) *
+          Math.cos((dZone.latitude * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distanceKm = Math.max(1.0, Math.round(R * c * 1.35 * 10) / 10);
+    }
+
+    const baseFarePoysha = 3000;
+    const distanceFarePoysha = Math.round(distanceKm * 1500);
+    let subtotalPoysha = baseFarePoysha + distanceFarePoysha;
+    if (seats > 1) {
+      subtotalPoysha = Math.round(subtotalPoysha * (1 + (seats - 1) * 0.7));
+    }
+    const discountPoysha = Math.round(subtotalPoysha * 0.25);
+    const finalFarePoysha = Math.max(2500, subtotalPoysha - discountPoysha);
+
+    return {
+      distanceKm,
+      soloFare: {
+        pickupZoneId: pickupId,
+        destinationZoneId: destId,
+        distanceKm,
+        requestedSeats: seats,
+        baseFareBdt: baseFarePoysha / 100,
+        distanceFareBdt: distanceFarePoysha / 100,
+        subtotalBdt: subtotalPoysha / 100,
+        discountBdt: 0,
+        discountPercent: 0,
+        finalFareBdt: subtotalPoysha / 100,
+        isPooled: false,
+        currency: 'BDT' as const,
+        explanation: 'Solo Ride'
+      },
+      pooledFare: {
+        pickupZoneId: pickupId,
+        destinationZoneId: destId,
+        distanceKm,
+        requestedSeats: seats,
+        baseFareBdt: baseFarePoysha / 100,
+        distanceFareBdt: distanceFarePoysha / 100,
+        subtotalBdt: subtotalPoysha / 100,
+        discountBdt: discountPoysha / 100,
+        discountPercent: 25,
+        finalFareBdt: finalFarePoysha / 100,
+        isPooled: true,
+        currency: 'BDT' as const,
+        explanation: 'Pooled Ride (25% Discount)'
+      },
+      potentialSavingsBdt: (subtotalPoysha - finalFarePoysha) / 100
+    };
+  };
+
+  useEffect(() => {
+    if (pickupZone === destinationZone) {
+      setEstimate(null);
+      return;
+    }
+
+    const instantEstimate = computeLocalEstimate(pickupZone, destinationZone, requestedSeats);
+    setEstimate(instantEstimate);
+
+    ApiService.estimateFare(pickupZone, destinationZone, requestedSeats)
+      .then((serverEst) => {
+        if (serverEst) setEstimate(serverEst);
+      })
+      .catch(() => {});
+  }, [pickupZone, destinationZone, requestedSeats, zones]);
+
+  /* --- Active Ride Telemetry & Commuter History --- */
   const loadPassengerData = async () => {
+    if (!ApiService.getToken() && currentUser?.token) {
+      ApiService.setToken(currentUser.token);
+    }
+    if (!ApiService.getToken()) return;
+
     try {
       const history = await ApiService.getMyHistory();
       setMyHistory(history);
@@ -106,6 +173,10 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
     if (pickupZone === destinationZone) {
       setMessage('Pickup and destination must be different zones.');
       return;
+    }
+
+    if (currentUser?.token && !ApiService.getToken()) {
+      ApiService.setToken(currentUser.token);
     }
 
     setLoading(true);
@@ -291,149 +362,156 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
 
       {/* BOOKING & FARE ENGINE CARD */}
       {!activeRide && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* Booking Form (7 Cols) */}
-          <div className="lg:col-span-7 bg-[#121216] border border-white/10 rounded-[32px] p-6 md:p-8 shadow-xl">
-            <div className="flex items-center justify-between pb-4 mb-6 border-b border-white/10">
-              <h3 className="text-lg font-extrabold text-white flex items-center gap-2.5">
-                <MapPin className="w-5 h-5 text-[#D2F832]" />
-                Book a Seat in Dhaka Tesla Pool
-              </h3>
-              <span className="text-xs font-mono text-[#D2F832] bg-[#D2F832]/10 px-2.5 py-0.5 rounded-full border border-[#D2F832]/20">
-                25% POOL DISCOUNT
-              </span>
-            </div>
-
-            <form onSubmit={handleBookRide} className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-mono text-zinc-300 block mb-1.5">
-                    Pickup Zone (Dhaka)
-                  </label>
-                  <select
-                    value={pickupZone}
-                    onChange={(e) => setPickupZone(e.target.value)}
-                    className="w-full bg-[#0A0A0E] border border-white/10 rounded-2xl px-4 py-3 text-xs font-mono text-white focus:outline-none focus:border-[#D2F832]"
-                  >
-                    {zones.map((z) => (
-                      <option key={z.id} value={z.id}>
-                        {z.name} ({z.bnName})
-                      </option>
-                    ))}
-                  </select>
+          <div className="lg:col-span-7 bg-[#121216] border border-white/10 rounded-[32px] p-6 md:p-8 shadow-xl flex flex-col justify-between">
+            <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-white/10">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#D2F832]/10 border border-[#D2F832]/30 flex items-center justify-center text-[#D2F832] shrink-0">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
+                    Book a Seat in Dhaka Tesla Pool
+                  </h3>
                 </div>
-
-                <div>
-                  <label className="text-xs font-mono text-zinc-300 block mb-1.5">
-                    Destination Zone
-                  </label>
-                  <select
-                    value={destinationZone}
-                    onChange={(e) => setDestinationZone(e.target.value)}
-                    className="w-full bg-[#0A0A0E] border border-white/10 rounded-2xl px-4 py-3 text-xs font-mono text-white focus:outline-none focus:border-[#D2F832]"
-                  >
-                    {zones.map((z) => (
-                      <option key={z.id} value={z.id}>
-                        {z.name} ({z.bnName})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <span className="text-[11px] font-mono text-[#D2F832] bg-[#D2F832]/10 px-2.5 py-1 rounded-full border border-[#D2F832]/25 font-bold shrink-0 self-start sm:self-auto whitespace-nowrap">
+                  25% POOL DISCOUNT
+                </span>
               </div>
 
-              {/* Seats and Payment selector */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-mono text-zinc-300 block mb-1.5">
-                    Number of Seats
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[1, 2, 3].map((s) => (
+              <form onSubmit={handleBookRide} className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-mono text-zinc-300 block mb-1.5 font-medium">
+                      Pickup Zone (Dhaka)
+                    </label>
+                    <select
+                      value={pickupZone}
+                      onChange={(e) => setPickupZone(e.target.value)}
+                      className="w-full bg-[#0A0A0E] border border-white/15 rounded-2xl px-3.5 py-3 text-xs font-mono text-white focus:outline-none focus:border-[#D2F832] cursor-pointer"
+                    >
+                      {zones.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.name} ({z.bnName})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-mono text-zinc-300 block mb-1.5 font-medium">
+                      Destination Zone
+                    </label>
+                    <select
+                      value={destinationZone}
+                      onChange={(e) => setDestinationZone(e.target.value)}
+                      className="w-full bg-[#0A0A0E] border border-white/15 rounded-2xl px-3.5 py-3 text-xs font-mono text-white focus:outline-none focus:border-[#D2F832] cursor-pointer"
+                    >
+                      {zones.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.name} ({z.bnName})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Seats and Payment selector */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="text-xs font-mono text-zinc-300 block mb-1.5 font-medium">
+                      Number of Seats
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[1, 2, 3].map((s) => (
+                        <button
+                          type="button"
+                          key={s}
+                          onClick={() => setRequestedSeats(s)}
+                          className={`py-2.5 rounded-xl text-xs font-mono font-bold transition-colors border ${
+                            requestedSeats === s
+                              ? 'bg-[#D2F832] text-black border-[#D2F832] shadow-sm'
+                              : 'bg-black/50 text-zinc-400 border-white/10 hover:border-white/20'
+                          }`}
+                        >
+                          {s} {s === 1 ? 'Seat' : 'Seats'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-mono text-zinc-300 block mb-1.5 font-medium">
+                      Payment Method
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        key={s}
-                        onClick={() => setRequestedSeats(s)}
-                        className={`py-2.5 rounded-xl text-xs font-mono font-bold transition-all border ${
-                          requestedSeats === s
-                            ? 'bg-[#D2F832] text-black border-[#D2F832]'
+                        onClick={() => setPaymentMethod('TESLAPAY')}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-colors border ${
+                          paymentMethod === 'TESLAPAY'
+                            ? 'bg-[#D2F832] text-black border-[#D2F832] shadow-sm'
                             : 'bg-black/50 text-zinc-400 border-white/10 hover:border-white/20'
                         }`}
                       >
-                        {s} {s === 1 ? 'Seat' : 'Seats'}
+                        <Zap className="w-3.5 h-3.5 fill-current" />
+                        <span>TeslaPay</span>
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('CASH')}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-colors border ${
+                          paymentMethod === 'CASH'
+                            ? 'bg-white text-black border-white shadow-sm'
+                            : 'bg-black/50 text-zinc-400 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        <span>Cash</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-mono text-zinc-300 block mb-1.5">
-                    Payment Method
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('TESLAPAY')}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all border ${
-                        paymentMethod === 'TESLAPAY'
-                          ? 'bg-[#D2F832] text-black border-[#D2F832]'
-                          : 'bg-black/50 text-zinc-400 border-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      <Zap className="w-3.5 h-3.5 fill-current" />
-                      <span>TeslaPay</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('CASH')}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition-all border ${
-                        paymentMethod === 'CASH'
-                          ? 'bg-white text-black border-white'
-                          : 'bg-black/50 text-zinc-400 border-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      <span>Cash</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-[#D2F832] hover:bg-[#c2e825] active:scale-[0.98] text-black font-extrabold py-4 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-xl shadow-[#D2F832]/20 transition-all cursor-pointer mt-6"
-              >
-                <span>{loading ? 'Dispatched to Bullet...' : `Confirm & Request Pool Seat`}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </form>
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[#D2F832] hover:bg-[#c2e825] active:scale-[0.98] text-black font-extrabold py-3.5 px-5 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-xl shadow-[#D2F832]/20 transition-all cursor-pointer mt-4"
+                >
+                  <span>{loading ? 'Dispatched to Bullet...' : `Confirm & Request Pool Seat`}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
           </div>
 
           {/* Fare Calculator & Savings Breakdown (5 Cols) */}
           <div className="lg:col-span-5 bg-[#121216] border border-white/10 rounded-[32px] p-6 md:p-8 shadow-xl flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/10">
-                <span className="text-xs font-mono uppercase font-bold text-zinc-400">
+                <span className="text-xs font-mono uppercase font-bold text-zinc-300">
                   Fare Calculation Model
                 </span>
-                <span className="text-[11px] font-mono text-[#D2F832] bg-[#D2F832]/10 px-2 py-0.5 rounded-full">
-                  PRD Section 5
+                <span className="text-[10px] font-mono text-[#D2F832] bg-[#D2F832]/10 border border-[#D2F832]/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#D2F832] animate-pulse" />
+                  <span>LIVE ESTIMATE</span>
                 </span>
               </div>
 
               {estimate ? (
-                <div className="space-y-4">
-                  <div className="bg-black/60 rounded-2xl p-4 border border-white/10">
-                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono mb-1">
+                <div className="space-y-3.5">
+                  <div className="bg-black/60 rounded-2xl p-4 border border-white/10 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
                       <span>Corridor Distance</span>
                       <span className="text-white font-bold">{estimate.distanceKm.toFixed(1)} km</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono mb-1">
-                      <span>Base Fare</span>
-                      <span className="text-white font-bold">৳{estimate.pooledFare.baseFareBdt.toFixed(2)}</span>
+                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
+                      <span>Base Flag-drop</span>
+                      <span className="text-white font-bold">৳{estimate.pooledFare.baseFareBdt.toFixed(2)} (3,000p)</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono mb-1">
+                    <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
                       <span>Distance Charge</span>
                       <span className="text-white font-bold">৳{estimate.pooledFare.distanceFareBdt.toFixed(2)}</span>
                     </div>
@@ -444,18 +522,26 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
                   </div>
 
                   {/* Highlight Final Fare Card */}
-                  <div className="bg-[#D2F832] text-black rounded-2xl p-5 shadow-lg">
-                    <div className="flex items-center justify-between text-xs font-bold text-black/75 mb-1">
+                  <div className="bg-[#D2F832] text-black rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden">
+                    <div className="flex items-center justify-between text-xs font-bold text-black/80 mb-1">
                       <span>POOLED PASSENGER FARE</span>
-                      <span className="text-[10px] font-mono bg-black/10 px-2 py-0.5 rounded">
+                      <span className="text-[10px] font-mono bg-black/15 px-2 py-0.5 rounded-full font-bold">
                         Integer Poysha
                       </span>
                     </div>
-                    <div className="text-3xl font-extrabold tracking-tight">
-                      ৳{estimate.pooledFare.finalFareBdt.toFixed(2)}
+                    <div className="flex items-baseline gap-2">
+                      <div className="text-3xl sm:text-4xl font-black tracking-tight">
+                        ৳{estimate.pooledFare.finalFareBdt.toFixed(2)}
+                      </div>
+                      <div className="text-xs font-mono font-bold text-black/70">
+                        ({Math.round(estimate.pooledFare.finalFareBdt * 100).toLocaleString()} Poysha)
+                      </div>
                     </div>
-                    <div className="text-xs font-mono font-semibold text-black/70 mt-1">
-                      {Math.round(estimate.pooledFare.finalFareBdt * 100).toLocaleString()} Poysha (zero decimal drift)
+                    <div className="text-[11px] font-mono font-semibold text-black/80 mt-1.5 flex items-center justify-between pt-2 border-t border-black/10">
+                      <span>Solo Fare: ৳{estimate.soloFare.finalFareBdt.toFixed(2)}</span>
+                      <span className="font-bold text-emerald-950 bg-black/10 px-2 py-0.5 rounded">
+                        Save ৳{estimate.potentialSavingsBdt.toFixed(2)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -466,8 +552,8 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
               )}
             </div>
 
-            <div className="pt-6 border-t border-white/10 mt-6 flex items-center justify-between text-xs font-mono text-zinc-400">
-              <span>Formula: Base + Dist - Discount</span>
+            <div className="pt-4 border-t border-white/10 mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] font-mono text-zinc-400">
+              <span>Formula: Base (৳30) + Dist (৳15/km) − 25%</span>
               <span className="text-[#D2F832] font-bold">৳1 = 100 Poysha</span>
             </div>
           </div>
