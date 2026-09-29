@@ -10,8 +10,17 @@ const server = http.createServer(app);
 // Initialize WebSocket streaming
 wsService.init(server);
 
-// Ensure DB is initialized
-getDatabase();
+// Initialize DB and ensure seed data is present on first run
+const db = getDatabase();
+try {
+  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+  if (userCount && userCount.count === 0) {
+    const { runSeed } = await import('./database/seed.js');
+    runSeed();
+  }
+} catch (err) {
+  console.warn('Initial seed check notice:', err);
+}
 
 server.listen(CONFIG.PORT, () => {
   console.log(`====================================================`);
