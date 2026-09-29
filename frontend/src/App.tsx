@@ -118,7 +118,7 @@ export default function App() {
     const wsHost = window.location.port === '3000'
       ? `${window.location.hostname}:5000`
       : window.location.host;
-    const wsUrl = `${protocol}//${wsHost}/ws`;
+    const wsUrl = (import.meta.env.VITE_WS_URL as string) || `${protocol}//${wsHost}/ws`;
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
 

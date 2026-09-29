@@ -1,6 +1,6 @@
 import { User, DhakaZone, RideRequest, ActivePool, FareBreakdown } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
 
 const FALLBACK_USERS: User[] = [
   {
