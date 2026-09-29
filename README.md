@@ -2,6 +2,8 @@
 
 > **Share a seat. Split the fare. Survive Dhaka traffic.**
 
+🌐 **Live Web App**: [https://oii-tesla.vercel.app](https://oii-tesla.vercel.app/)
+
 An electric ride-pooling system built for the Banani rush hour, featuring **Jashim** and his 3-seat electric "Tesla" named **Bullet**, carrying commuters **Nusrat**, **Rafiq**, and **Shirin**.
 
 ---
