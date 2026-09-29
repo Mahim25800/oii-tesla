@@ -34,6 +34,16 @@ const FALLBACK_USERS: User[] = [
     token: 'jwt-demo-token-shirin'
   },
   {
+    id: 'user_sakib',
+    email: 'mhim2580@gmail.com',
+    name: 'Sakib Hasan',
+    role: 'PASSENGER',
+    phone: '01711223344',
+    wallet_poysha: 50000,
+    wallet_bdt: 500,
+    token: 'jwt-demo-token-sakib'
+  },
+  {
     id: 'user_jashim',
     email: 'jashim@dhakatesla.com',
     name: 'Jashim Uddin (Pilot)',
@@ -44,6 +54,36 @@ const FALLBACK_USERS: User[] = [
     token: 'jwt-demo-token-jashim'
   }
 ];
+
+interface StoredUser extends User {
+  password?: string;
+}
+
+function getStoredUsers(): StoredUser[] {
+  try {
+    const raw = localStorage.getItem('dhaka_tesla_custom_users');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredUser(user: StoredUser) {
+  try {
+    const users = getStoredUsers();
+    const idx = users.findIndex(
+      (u) => u.email.toLowerCase() === user.email.toLowerCase() || u.phone === user.phone
+    );
+    if (idx >= 0) {
+      users[idx] = { ...users[idx], ...user };
+    } else {
+      users.push(user);
+    }
+    localStorage.setItem('dhaka_tesla_custom_users', JSON.stringify(users));
+  } catch (e) {
+    console.warn('Failed to save user to localStorage', e);
+  }
+}
 
 export class ApiService {
   private static token: string | null = null;
@@ -111,11 +151,14 @@ export class ApiService {
       const data = await this.request<{ cast: User[] }>('/auth/demo-users');
       return data.cast;
     } catch {
-      return FALLBACK_USERS;
+      const custom = getStoredUsers();
+      return [...custom, ...FALLBACK_USERS];
     }
   }
 
   public static async login(identifier: string, password = 'password123'): Promise<{ user: User; token: string }> {
+    const cleanIdent = identifier.trim().toLowerCase();
+
     try {
       const data = await this.request<{ user: User; token: string }>('/auth/login', {
         method: 'POST',
@@ -123,17 +166,37 @@ export class ApiService {
       });
       data.user.token = data.token;
       this.setToken(data.token);
+      saveStoredUser({ ...data.user, password });
       return data;
     } catch (err: any) {
-      const cleanIdent = identifier.trim().toLowerCase();
-      const match = FALLBACK_USERS.find(
+      // 1. Check local registered custom users
+      const storedUsers = getStoredUsers();
+      const customMatch = storedUsers.find(
+        (u) =>
+          (u.email.toLowerCase() === cleanIdent || u.phone === cleanIdent || u.name.toLowerCase().includes(cleanIdent)) &&
+          (!u.password || u.password === password)
+      );
+      if (customMatch) {
+        const token = customMatch.token || `jwt-${customMatch.id}`;
+        this.setToken(token);
+        return { user: { ...customMatch, token }, token };
+      }
+
+      // 2. Check fallback demo users
+      const demoMatch = FALLBACK_USERS.find(
         (u) => u.email.toLowerCase() === cleanIdent || u.phone === cleanIdent || u.name.toLowerCase().includes(cleanIdent)
       );
-      if (match) {
-        const token = match.token || `jwt-${match.id}`;
+      if (demoMatch) {
+        const token = demoMatch.token || `jwt-${demoMatch.id}`;
         this.setToken(token);
-        return { user: { ...match, token }, token };
+        return { user: { ...demoMatch, token }, token };
       }
+
+      // 3. User friendly message if backend is unreachable
+      if (err.message === 'Failed to fetch' || err.message?.includes('NetworkError') || err.message?.includes('offline')) {
+        throw new Error('Backend is waking up or not yet connected. Free tier Render instances take ~45s to spin up. Please retry in a moment!');
+      }
+
       throw err;
     }
   }
@@ -153,6 +216,7 @@ export class ApiService {
       });
       data.user.token = data.token;
       this.setToken(data.token);
+      saveStoredUser({ ...data.user, password: payload.password });
       return data;
     } catch (err: any) {
       // Re-throw server validation or conflict errors
@@ -176,13 +240,26 @@ export class ApiService {
         token: `jwt-user-${Date.now()}`
       };
       this.setToken(newUser.token!);
+      saveStoredUser({ ...newUser, password: payload.password });
       return { user: newUser, token: newUser.token! };
     }
   }
 
   public static async getMe(): Promise<User> {
-    const data = await this.request<{ user: User }>('/auth/me');
-    return data.user;
+    try {
+      const data = await this.request<{ user: User }>('/auth/me');
+      return data.user;
+    } catch (err) {
+      const token = this.getToken();
+      if (token) {
+        const storedUsers = getStoredUsers();
+        const found = storedUsers.find((u) => u.token === token || `jwt-${u.id}` === token);
+        if (found) return found;
+        const demoFound = FALLBACK_USERS.find((u) => u.token === token);
+        if (demoFound) return demoFound;
+      }
+      throw err;
+    }
   }
 
   public static async topupWallet(amountBdt: number): Promise<{ wallet_bdt: number }> {

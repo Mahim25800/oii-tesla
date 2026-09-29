@@ -67,6 +67,9 @@ export function runSeed(customDbPath?: string): SeedDataResult {
   const shirinId = uuidv4();
   insertUser.run(shirinId, 'Shirin Akter', '+8801711000004', 'shirin@mohakhali.dhaka', passwordHash, 'PASSENGER', 50000); // 500 BDT
 
+  const sakibId = uuidv4();
+  insertUser.run(sakibId, 'Sakib Hasan', '01711223344', 'mhim2580@gmail.com', passwordHash, 'PASSENGER', 50000); // 500 BDT
+
   // Log seed audit
   const insertAudit = db.prepare(`
     INSERT INTO audit_logs (id, entity_type, entity_id, action, actor_id, details)
