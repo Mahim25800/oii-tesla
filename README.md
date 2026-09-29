@@ -122,13 +122,11 @@ flowchart LR
 
 ## AI Usage Disclosure (PRD Section 8)
 
-- **Tools Used**: Claude, ChatGPT, Cursor.
+- **Tools Used**: Gamini, ChatGPT.
 - **Purpose**: Boilerplate scaffolding, Tailwind CSS layout styling, and test cases.
 - **Accepted Suggestion**: Using Docker Compose health check with native Node.js `fetch` to keep the Docker image small without needing `curl`.
 - **Rejected Suggestion**: An AI suggested instantly auto-matching passengers without driver approval. We rejected this because in real Dhaka transit, the driver (Jashim) needs to see who is riding and explicitly accept them.
 
 ---
 
-## Demo Video
 
-- **Walkthrough Video**: `[Insert 6-minute Loom link here]`
