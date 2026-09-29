@@ -33,7 +33,6 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
   onRefreshUser,
   onTopup
 }) => {
-  // Defaults customized to persona: Nusrat prefers Mohakhali, Rafiq prefers Gulshan 1
   const defaultDest = currentUser.email.includes('rafiq') ? 'GULSHAN_1' : 'MOHAKHALI';
 
   const [pickupZone, setPickupZone] = useState('BANANI');
@@ -54,7 +53,6 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
   const [cancelling, setCancelling] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Sync destination if persona changes
   useEffect(() => {
     if (currentUser.email.includes('rafiq')) {
       setDestinationZone('GULSHAN_1');
@@ -63,7 +61,7 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
     }
   }, [currentUser.id]);
 
-  // Deterministic local fare calculator fallback (guarantees instant zero-delay estimate)
+  /* --- Deterministic Haversine & Integer Poysha Local Estimator --- */
   const computeLocalEstimate = (pickupId: string, destId: string, seats: number) => {
     const pZone = zones.find((z) => z.id === pickupId);
     const dZone = zones.find((z) => z.id === destId);
@@ -128,28 +126,23 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
     };
   };
 
-  // Fetch estimate whenever zones or seats change with instant local fallback
   useEffect(() => {
     if (pickupZone === destinationZone) {
       setEstimate(null);
       return;
     }
 
-    // Populate immediately with zero-latency deterministic calculation
     const instantEstimate = computeLocalEstimate(pickupZone, destinationZone, requestedSeats);
     setEstimate(instantEstimate);
 
-    // Sync with backend API if available
     ApiService.estimateFare(pickupZone, destinationZone, requestedSeats)
       .then((serverEst) => {
         if (serverEst) setEstimate(serverEst);
       })
-      .catch(() => {
-        // Keeps instant estimate seamlessly active without layout breaks
-      });
+      .catch(() => {});
   }, [pickupZone, destinationZone, requestedSeats, zones]);
 
-  // Load active ride & history
+  /* --- Active Ride Telemetry & Commuter History --- */
   const loadPassengerData = async () => {
     if (!ApiService.getToken() && currentUser?.token) {
       ApiService.setToken(currentUser.token);

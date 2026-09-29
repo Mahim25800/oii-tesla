@@ -65,6 +65,7 @@ export class PoolingService {
     destinationZone: string;
     requestedSeats?: number;
     paymentMethod?: 'CASH' | 'TESLAPAY';
+    autoPool?: boolean;
   }): RideRequestDTO {
     const db = getDatabase();
     const seats = Math.max(1, params.requestedSeats || 1);
@@ -88,9 +89,8 @@ export class PoolingService {
     const rideId = uuidv4();
     const paymentMethod = params.paymentMethod || 'TESLAPAY';
 
-    // Wrap request creation & pool matching in an atomic SQLite transaction
+    /* --- Atomic Ride Request Persistence --- */
     const executeBooking = db.transaction(() => {
-      // 1. Insert initial ride request in REQUESTED state
       db.prepare(`
         INSERT INTO ride_requests (
           id, passenger_id, pickup_zone, destination_zone, requested_seats,
@@ -111,7 +111,6 @@ export class PoolingService {
         paymentMethod
       );
 
-      // Audit log request
       db.prepare(`
         INSERT INTO audit_logs (id, entity_type, entity_id, action, actor_id, details)
         VALUES (?, 'RIDE_REQUEST', ?, 'REQUEST_CREATED', ?, ?)
@@ -122,7 +121,7 @@ export class PoolingService {
         JSON.stringify({ pickup: params.pickupZone, destination: params.destinationZone, seats, farePoysha: soloFare.finalFarePoysha })
       );
 
-      // 2. Only auto-match into open pools if explicitly enabled (e.g. simulation or test automation)
+      // Automated matching trigger (utilized during automated simulation runs)
       if (params.autoPool) {
         const candidatePools = db.prepare(`
           SELECT p.id, p.vehicle_id, p.driver_id, p.total_capacity, p.occupied_seats, p.status, p.current_zone,
@@ -158,13 +157,12 @@ export class PoolingService {
           }
 
           if (isCompatible) {
-            // Re-verify capacity constraint strictly before updating
+            // Guard: capacity ceiling invariant (occupied + requested <= capacity)
             const freshPool = db.prepare('SELECT occupied_seats, total_capacity FROM pools WHERE id = ?').get(pool.id) as any;
             if (freshPool.occupied_seats + seats > freshPool.total_capacity) {
-              continue; // Can't fit in this pool, check next
+              continue;
             }
 
-            // Matched! Calculate pooled fare with 25% discount
             const pooledFare = FareEngine.calculateFare({
               pickupZoneId: params.pickupZone,
               destinationZoneId: params.destinationZone,
@@ -172,20 +170,17 @@ export class PoolingService {
               isPooled: true
             });
 
-            // Atomically occupy seats
             db.prepare(`
               UPDATE pools 
               SET occupied_seats = occupied_seats + ?, updated_at = datetime('now')
               WHERE id = ?
             `).run(seats, pool.id);
 
-            // Create pool membership
             db.prepare(`
               INSERT INTO pool_memberships (id, pool_id, ride_request_id, seats_allocated, status, joined_at)
               VALUES (?, ?, ?, ?, 'ACTIVE', datetime('now'))
             `).run(uuidv4(), pool.id, rideId, seats);
 
-            // Update ride request to MATCHED
             db.prepare(`
               UPDATE ride_requests
               SET status = 'MATCHED',
@@ -196,7 +191,7 @@ export class PoolingService {
               WHERE id = ?
             `).run(pool.id, pooledFare.discountPoysha, pooledFare.finalFarePoysha, rideId);
 
-            // Also apply pool discount to existing members in this pool who weren't already discounted!
+            // Retroactive pool discount for active co-riders in this corridor
             const activeRideRequests = db.prepare(`
               SELECT r.id, r.pickup_zone, r.destination_zone, r.requested_seats, r.discount_poysha
               FROM ride_requests r
@@ -223,7 +218,6 @@ export class PoolingService {
               }
             }
 
-            // Audit log match
             db.prepare(`
               INSERT INTO audit_logs (id, entity_type, entity_id, action, actor_id, details)
               VALUES (?, 'POOL', ?, 'SEAT_ALLOCATED', ?, ?)
@@ -240,7 +234,7 @@ export class PoolingService {
               })
             );
 
-            break; // successfully matched!
+            break;
           }
         }
       }
@@ -258,8 +252,8 @@ export class PoolingService {
   public static driverAcceptRide(driverId: string, rideRequestId: string): RideRequestDTO {
     const db = getDatabase();
 
+    /* --- Driver Acceptance & Electric Corridor Pool Formation --- */
     const acceptTransaction = db.transaction(() => {
-      // Find driver's vehicle
       const vehicle = db.prepare('SELECT id, total_capacity, name, license_plate FROM vehicles WHERE driver_id = ?').get(driverId) as any;
       if (!vehicle) {
         throw new Error('Driver does not own an active Dhaka Tesla vehicle');
@@ -274,14 +268,12 @@ export class PoolingService {
         throw new InvalidStateTransitionError(`Cannot accept ride with status ${ride.status}. Must be REQUESTED.`);
       }
 
-      // Check if driver currently has an active/forming pool
       let pool = db.prepare(`
         SELECT * FROM pools 
         WHERE driver_id = ? AND status IN ('FORMING', 'ACTIVE')
       `).get(driverId) as any;
 
       if (!pool) {
-        // Create new pool for Bullet
         const poolId = uuidv4();
         db.prepare(`
           INSERT INTO pools (
@@ -300,14 +292,13 @@ export class PoolingService {
         pool = db.prepare('SELECT * FROM pools WHERE id = ?').get(poolId) as any;
       }
 
-      // Strict capacity invariant check: Bullet has 3 seats max
+      // Hard Invariant: Occupied seats cannot exceed fixed vehicle capacity (C = 3)
       if (pool.occupied_seats + ride.requested_seats > pool.total_capacity) {
         throw new CapacityExceededError(
           `Cannot allocate ${ride.requested_seats} seat(s). Vehicle '${vehicle.name}' has only ${pool.total_capacity - pool.occupied_seats} seat(s) remaining out of ${pool.total_capacity}.`
         );
       }
 
-      // Allocate seat
       db.prepare(`
         UPDATE pools 
         SET occupied_seats = occupied_seats + ?, status = 'FORMING', updated_at = datetime('now')
@@ -319,7 +310,6 @@ export class PoolingService {
         VALUES (?, ?, ?, ?, 'ACTIVE', datetime('now'))
       `).run(uuidv4(), pool.id, ride.id, ride.requested_seats);
 
-      // Check all active members in this pool
       const activeMembers = db.prepare(`
         SELECT r.id, r.pickup_zone, r.destination_zone, r.requested_seats
         FROM ride_requests r
@@ -356,7 +346,6 @@ export class PoolingService {
         `).run(pool.id, ride.id);
       }
 
-      // Audit log
       db.prepare(`
         INSERT INTO audit_logs (id, entity_type, entity_id, action, actor_id, details)
         VALUES (?, 'RIDE_REQUEST', ?, 'MATCHED', ?, ?)
@@ -469,8 +458,8 @@ export class PoolingService {
     }
     if (ride.driver_id !== driverId) throw new UnauthorizedRideAccessError('Only the assigned driver can complete this trip');
 
+    /* --- Financial Settlement (Integer Poysha) & Seat Deallocation --- */
     db.transaction(() => {
-      // 1. Process payment
       if (ride.payment_method === 'TESLAPAY') {
         const passenger = db.prepare('SELECT wallet_poysha FROM users WHERE id = ?').get(ride.passenger_id) as any;
         if (passenger && passenger.wallet_poysha >= ride.final_fare_poysha) {
@@ -478,14 +467,13 @@ export class PoolingService {
           db.prepare('UPDATE users SET wallet_poysha = wallet_poysha + ? WHERE id = ?').run(ride.final_fare_poysha, driverId);
           db.prepare("UPDATE ride_requests SET payment_status = 'PAID' WHERE id = ?").run(rideRequestId);
         } else {
-          // Fallback to cash if wallet balance was insufficient
+          // Graceful fallback to cash collection if wallet balance is below fare
           db.prepare("UPDATE ride_requests SET payment_method = 'CASH', payment_status = 'PAID' WHERE id = ?").run(rideRequestId);
         }
       } else {
         db.prepare("UPDATE ride_requests SET payment_status = 'PAID' WHERE id = ?").run(rideRequestId);
       }
 
-      // 2. Mark ride completed
       db.prepare(`
         UPDATE ride_requests 
         SET status = 'COMPLETED', updated_at = datetime('now') 
@@ -498,14 +486,13 @@ export class PoolingService {
         WHERE ride_request_id = ?
       `).run(rideRequestId);
 
-      // 3. Release occupied seats on the pool
+      // Restore vehicle seat availability
       db.prepare(`
         UPDATE pools 
         SET occupied_seats = MAX(0, occupied_seats - ?), updated_at = datetime('now')
         WHERE id = ?
       `).run(ride.requested_seats, ride.pool_id);
 
-      // Check if all rides in this pool are completed; if so, close pool
       const remainingActive = db.prepare(`
         SELECT COUNT(*) as count 
         FROM pool_memberships 
@@ -568,7 +555,7 @@ export class PoolingService {
       `).run(reason, rideRequestId);
 
       if (ride.pool_id) {
-        // Free the reserved seat(s) on the pool!
+        // Restore pool capacity invariant upon cancellation
         db.prepare(`
           UPDATE pools 
           SET occupied_seats = MAX(0, occupied_seats - ?), updated_at = datetime('now')
