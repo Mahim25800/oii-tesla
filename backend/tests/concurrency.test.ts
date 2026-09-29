@@ -50,8 +50,8 @@ describe('Concurrency & Race Condition Invariant Tests', () => {
     const registerRes = await request(app)
       .post('/api/auth/register')
       .send({
-        name: 'Kamal Hossain',
-        phone: '+8801755443322',
+        name: 'Md Kamal Hossain',
+        phone: '01755443322',
         email: 'kamal@dhaka.tesla',
         password: 'password123',
         role: 'PASSENGER'

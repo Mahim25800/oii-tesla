@@ -143,6 +143,7 @@ export class ApiService {
     phone: string;
     email: string;
     password: string;
+    confirmPassword?: string;
     role: 'PASSENGER' | 'DRIVER';
   }): Promise<{ user: User; token: string }> {
     try {
@@ -154,6 +155,16 @@ export class ApiService {
       this.setToken(data.token);
       return data;
     } catch (err: any) {
+      // Re-throw server validation or conflict errors
+      if (
+        err.message &&
+        !err.message.includes('offline') &&
+        !err.message.includes('unreachable') &&
+        !err.message.includes('Failed to fetch') &&
+        !err.message.includes('NetworkError')
+      ) {
+        throw err;
+      }
       const newUser: User = {
         id: `user_${Date.now()}`,
         name: payload.name,

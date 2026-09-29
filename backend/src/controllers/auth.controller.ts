@@ -8,10 +8,41 @@ import { CONFIG } from '../config/index.js';
 export class AuthController {
   public static async register(req: Request, res: Response): Promise<void> {
     try {
-      const { name, phone, email, password, role = 'PASSENGER' } = req.body;
+      const { name, phone, email, password, confirmPassword, role = 'PASSENGER' } = req.body;
 
       if (!name || !phone || !email || !password) {
         res.status(400).json({ error: 'Validation Error: Name, phone, email, and password are required' });
+        return;
+      }
+
+      // Name validation: must not be less than 3 words
+      const nameWords = typeof name === 'string' ? name.trim().split(/\s+/).filter(Boolean) : [];
+      if (nameWords.length < 3) {
+        res.status(400).json({ error: 'Validation Error: Name must contain at least 3 words (e.g. Md Tanvir Hasan)' });
+        return;
+      }
+
+      // Phone validation: exactly 11 digits, numbers only
+      const cleanPhone = typeof phone === 'string' ? phone.trim() : '';
+      if (!/^\d{11}$/.test(cleanPhone)) {
+        res.status(400).json({ error: 'Validation Error: Phone number must be exactly 11 digits and contain only numbers (e.g. 01712345678)' });
+        return;
+      }
+
+      // Email validation: must match email structure
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (typeof email !== 'string' || !emailRegex.test(email.trim())) {
+        res.status(400).json({ error: 'Validation Error: Invalid email format (must match standard email structure)' });
+        return;
+      }
+
+      if (typeof password !== 'string' || password.length < 6) {
+        res.status(400).json({ error: 'Validation Error: Password must be at least 6 characters' });
+        return;
+      }
+
+      if (confirmPassword && confirmPassword !== password) {
+        res.status(400).json({ error: 'Validation Error: Passwords do not match' });
         return;
       }
 

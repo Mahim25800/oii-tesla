@@ -53,19 +53,84 @@ describe('Auth & User Lifecycle Endpoints', () => {
     expect(res.status).toBe(401);
   });
 
-  it('allows registering a new commuter', async () => {
+  it('allows registering a new commuter with valid inputs', async () => {
     const res = await request(app)
       .post('/api/auth/register')
       .send({
-        name: 'Tanvir Hasan',
+        name: 'Md Tanvir Hasan',
         email: 'tanvir@dhaka.tesla',
-        phone: '+8801799887766',
+        phone: '01799887766',
         password: 'securePassword99',
+        confirmPassword: 'securePassword99',
         role: 'PASSENGER'
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.user.name).toBe('Tanvir Hasan');
+    expect(res.body.user.name).toBe('Md Tanvir Hasan');
     expect(res.body.token).toBeDefined();
+  });
+
+  it('rejects registration when name has less than 3 words', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Tanvir Hasan', // only 2 words
+        email: 'tanvir.two@dhaka.tesla',
+        phone: '01799887761',
+        password: 'securePassword99',
+        confirmPassword: 'securePassword99',
+        role: 'PASSENGER'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at least 3 words/i);
+  });
+
+  it('rejects registration when phone is not 11 digits or has non-numbers', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Md Tanvir Hasan',
+        email: 'tanvir.phone@dhaka.tesla',
+        phone: '+88017998877', // non-numbers and wrong length
+        password: 'securePassword99',
+        confirmPassword: 'securePassword99',
+        role: 'PASSENGER'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/11 digits/i);
+  });
+
+  it('rejects registration when email structure is invalid', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Md Tanvir Hasan',
+        email: 'not-an-email-structure',
+        phone: '01799887762',
+        password: 'securePassword99',
+        confirmPassword: 'securePassword99',
+        role: 'PASSENGER'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid email format/i);
+  });
+
+  it('rejects registration when confirm password does not match', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Md Tanvir Hasan',
+        email: 'tanvir.pwd@dhaka.tesla',
+        phone: '01799887763',
+        password: 'securePassword99',
+        confirmPassword: 'differentPassword99',
+        role: 'PASSENGER'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/passwords do not match/i);
   });
 });

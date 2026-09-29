@@ -31,6 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [identifier, setIdentifier] = useState(''); // email or phone for sign in
 
   // Status
@@ -45,6 +46,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setPhone('');
     setEmail('');
     setPassword('');
+    setConfirmPassword('');
     setIdentifier('');
     setError(null);
     setSuccessMsg(null);
@@ -97,13 +99,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim() || !email.trim() || !password) {
+    if (!name.trim() || !phone.trim() || !email.trim() || !password || !confirmPassword) {
       setError('Please fill in all required fields');
       return;
     }
 
+    // 1. Name validation: must not be less than 3 words
+    const nameWords = name.trim().split(/\s+/).filter(Boolean);
+    if (nameWords.length < 3) {
+      setError('Full Name must contain at least 3 words (e.g. Md Tanvir Hasan)');
+      return;
+    }
+
+    // 2. Phone validation: exactly 11 digits, numbers only
+    if (!/^\d{11}$/.test(phone.trim())) {
+      setError('Phone number must be exactly 11 digits and contain only numbers (e.g. 01712345678)');
+      return;
+    }
+
+    // 3. Email validation: must match email structure
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('Please enter a valid email address (e.g. commuter@dhakatesla.com)');
+      return;
+    }
+
+    // 4. Password validation
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      return;
+    }
+
+    // 5. Confirm password match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match. Please verify your password.');
       return;
     }
 
@@ -116,6 +145,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         phone: phone.trim(),
         email: email.trim().toLowerCase(),
         password,
+        confirmPassword,
         role
       });
       confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
@@ -389,8 +419,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             {/* Name */}
             <div>
-              <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">
-                Full Name
+              <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider flex items-center justify-between">
+                <span>Full Name</span>
+                <span className={`text-[10px] font-mono ${name.trim().split(/\s+/).filter(Boolean).length >= 3 ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                  {name.trim().split(/\s+/).filter(Boolean).length}/3 words min
+                </span>
               </label>
               <div className="relative">
                 <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -399,7 +432,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Tanvir Ahmed"
+                  placeholder="e.g. Md Tanvir Hasan"
                   className="w-full bg-black/50 border border-white/10 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#D2F832] transition-colors"
                 />
               </div>
@@ -408,25 +441,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {/* Phone & Email side by side */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">
-                  Phone (+880)
+                <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider flex items-center justify-between">
+                  <span>Phone (11 digits)</span>
+                  <span className={`text-[10px] font-mono ${phone.length === 11 ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                    {phone.length}/11
+                  </span>
                 </label>
                 <div className="relative">
                   <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={11}
                     required
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+8801711234567"
-                    className="w-full bg-black/50 border border-white/10 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#D2F832] transition-colors"
+                    onChange={(e) => {
+                      // Only numbers allowed, max 11 digits
+                      const numbersOnly = e.target.value.replace(/\D/g, '').slice(0, 11);
+                      setPhone(numbersOnly);
+                    }}
+                    placeholder="01712345678"
+                    className="w-full bg-black/50 border border-white/10 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#D2F832] transition-colors font-mono"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">
-                  Email
+                  Email Address
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -435,28 +478,52 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="tanvir@dhaka.com"
+                    placeholder="user@example.com"
                     className="w-full bg-black/50 border border-white/10 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#D2F832] transition-colors"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  className="w-full bg-black/50 border border-white/10 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#D2F832] transition-colors"
-                />
+            {/* Password & Confirm Password side by side */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="At least 6 chars"
+                    className="w-full bg-black/50 border border-white/10 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#D2F832] transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono text-zinc-400 mb-1 uppercase tracking-wider flex items-center justify-between">
+                  <span>Confirm Password</span>
+                  {confirmPassword && (
+                    <span className={`text-[10px] font-mono ${password === confirmPassword ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {password === confirmPassword ? 'Match' : 'Mismatch'}
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repeat password"
+                    className="w-full bg-black/50 border border-white/10 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#D2F832] transition-colors"
+                  />
+                </div>
               </div>
             </div>
 
