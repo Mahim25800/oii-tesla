@@ -55,6 +55,19 @@ const FALLBACK_USERS: User[] = [
   }
 ];
 
+export const DEFAULT_ZONES: DhakaZone[] = [
+  { id: 'BANANI', name: 'Banani Road 11', bnName: 'বনানী ১১', latitude: 23.7937, longitude: 90.4066, corridor: 'BANANI_CORRIDOR', description: 'Commercial & dining hub' },
+  { id: 'GULSHAN_2', name: 'Gulshan 2 Circle', bnName: 'গুলশান ২', latitude: 23.7948, longitude: 90.4143, corridor: 'BANANI_CORRIDOR', description: 'Diplomatic zone' },
+  { id: 'GULSHAN_1', name: 'Gulshan 1 Circle', bnName: 'গুলশান ১', latitude: 23.7785, longitude: 90.4168, corridor: 'GULSHAN_MOHAKHALI_CORRIDOR', description: 'Rafiq destination' },
+  { id: 'MOHAKHALI', name: 'Mohakhali Wireless', bnName: 'মহাখালী', latitude: 23.7776, longitude: 90.4054, corridor: 'GULSHAN_MOHAKHALI_CORRIDOR', description: 'Nusrat destination' },
+  { id: 'FARMGATE', name: 'Farmgate', bnName: 'ফার্মগেট', latitude: 23.7561, longitude: 90.3872, corridor: 'CENTRAL_CORRIDOR', description: 'Major transit crossing' },
+  { id: 'DHANMONDI', name: 'Dhanmondi 27', bnName: 'ধানমন্ডি ২৭', latitude: 23.7533, longitude: 90.3769, corridor: 'WEST_CORRIDOR', description: 'Residential & university corridor' },
+  { id: 'MIRPUR_10', name: 'Mirpur 10 Circle', bnName: 'মিরপুর ১০', latitude: 23.8070, longitude: 90.3686, corridor: 'MIRPUR_CORRIDOR', description: 'Metro rail interchange' },
+  { id: 'UTTARA_3', name: 'Uttara Sector 3', bnName: 'উত্তরা ৩', latitude: 23.8680, longitude: 90.3980, corridor: 'NORTH_CORRIDOR', description: 'Airport highway residential gate' },
+  { id: 'BADDA', name: 'Badda Link Road', bnName: 'বাড্ডা লিংক রোড', latitude: 23.7806, longitude: 90.4267, corridor: 'EAST_CORRIDOR', description: 'Pragoti Sarani connection' },
+  { id: 'TEJGAON', name: 'Tejgaon I/A', bnName: 'তেজগাঁও', latitude: 23.7684, longitude: 90.3995, corridor: 'CENTRAL_CORRIDOR', description: 'Industrial & tech zone' }
+];
+
 interface StoredUser extends User {
   password?: string;
 }
@@ -83,6 +96,49 @@ function saveStoredUser(user: StoredUser) {
   } catch (e) {
     console.warn('Failed to save user to localStorage', e);
   }
+}
+
+function getStoredRides(): RideRequest[] {
+  try {
+    const raw = localStorage.getItem('dhaka_tesla_my_rides');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredRides(rides: RideRequest[]) {
+  try {
+    localStorage.setItem('dhaka_tesla_my_rides', JSON.stringify(rides));
+  } catch (e) {
+    console.warn('Failed to save rides to localStorage', e);
+  }
+}
+
+function calculateMockFare(pickup: string, destination: string, seats: number = 1) {
+  const pZone = DEFAULT_ZONES.find((z) => z.id === pickup);
+  const dZone = DEFAULT_ZONES.find((z) => z.id === destination);
+  let distanceKm = 4.0;
+  if (pZone && dZone) {
+    const dLat = (dZone.latitude - pZone.latitude) * 111;
+    const dLon = (dZone.longitude - pZone.longitude) * 102;
+    distanceKm = Math.max(1.0, Math.round(Math.sqrt(dLat * dLat + dLon * dLon) * 10) / 10);
+  }
+
+  const baseFarePoysha = 4000;
+  const distanceFarePoysha = Math.round(distanceKm * 500);
+  const subtotalPoysha = (baseFarePoysha + distanceFarePoysha) * seats;
+  const discountPoysha = Math.round(subtotalPoysha * 0.25);
+  const finalFarePoysha = Math.max(2500, subtotalPoysha - discountPoysha);
+
+  return {
+    distanceKm,
+    baseFarePoysha,
+    distanceFarePoysha,
+    discountPoysha,
+    finalFarePoysha,
+    finalFareBdt: finalFarePoysha / 100
+  };
 }
 
 export class ApiService {
@@ -263,29 +319,89 @@ export class ApiService {
   }
 
   public static async topupWallet(amountBdt: number): Promise<{ wallet_bdt: number }> {
-    return this.request<{ wallet_bdt: number }>('/auth/wallet/topup', {
-      method: 'POST',
-      body: JSON.stringify({ amountBdt })
-    });
+    try {
+      return await this.request<{ wallet_bdt: number }>('/auth/wallet/topup', {
+        method: 'POST',
+        body: JSON.stringify({ amountBdt })
+      });
+    } catch {
+      const token = this.getToken();
+      const users = getStoredUsers();
+      const user = users.find((u) => u.token === token || `jwt-${u.id}` === token);
+      if (user) {
+        user.wallet_bdt = (user.wallet_bdt || 0) + amountBdt;
+        user.wallet_poysha = user.wallet_bdt * 100;
+        saveStoredUser(user);
+        return { wallet_bdt: user.wallet_bdt };
+      }
+      return { wallet_bdt: 500 + amountBdt };
+    }
   }
 
   // Zones
   public static async getZones(): Promise<DhakaZone[]> {
-    const data = await this.request<{ zones: DhakaZone[] }>('/zones');
-    return data.zones;
+    try {
+      const data = await this.request<{ zones: DhakaZone[] }>('/zones');
+      return data.zones;
+    } catch {
+      return DEFAULT_ZONES;
+    }
   }
 
   // Rides & Pooling
-  public static async estimateFare(pickupZone: string, destinationZone: string, requestedSeats = 1): Promise<{
+  public static async estimateFare(
+    pickupZone: string,
+    destinationZone: string,
+    requestedSeats = 1
+  ): Promise<{
     distanceKm: number;
     soloFare: FareBreakdown;
     pooledFare: FareBreakdown;
     potentialSavingsBdt: number;
   }> {
-    return this.request('/rides/estimate', {
-      method: 'POST',
-      body: JSON.stringify({ pickupZone, destinationZone, requestedSeats })
-    });
+    try {
+      return await this.request('/rides/estimate', {
+        method: 'POST',
+        body: JSON.stringify({ pickupZone, destinationZone, requestedSeats })
+      });
+    } catch {
+      const fare = calculateMockFare(pickupZone, destinationZone, requestedSeats);
+      const soloSubtotal = (fare.baseFarePoysha + fare.distanceFarePoysha) / 100;
+      return {
+        distanceKm: fare.distanceKm,
+        soloFare: {
+          pickupZoneId: pickupZone,
+          destinationZoneId: destinationZone,
+          distanceKm: fare.distanceKm,
+          requestedSeats,
+          baseFareBdt: fare.baseFarePoysha / 100,
+          distanceFareBdt: fare.distanceFarePoysha / 100,
+          subtotalBdt: soloSubtotal,
+          discountBdt: 0,
+          discountPercent: 0,
+          finalFareBdt: soloSubtotal,
+          isPooled: false,
+          currency: 'BDT',
+          explanation: 'Solo Ride (Standard Fleet)'
+        },
+        pooledFare: {
+          pickupZoneId: pickupZone,
+          destinationZoneId: destinationZone,
+          distanceKm: fare.distanceKm,
+          requestedSeats,
+          baseFareBdt: fare.baseFarePoysha / 100,
+          distanceFareBdt: fare.distanceFarePoysha / 100,
+          subtotalBdt: soloSubtotal,
+          discountBdt: fare.discountPoysha / 100,
+          discountPercent: 25,
+          finalFareBdt: fare.finalFareBdt,
+          isPooled: true,
+          currency: 'BDT',
+          explanation: 'Pooled Ride (25% Discount corridor incentive)'
+        },
+        potentialSavingsBdt: fare.discountPoysha / 100
+      };
+    }
   }
 
   public static async requestRide(params: {
@@ -294,78 +410,283 @@ export class ApiService {
     requestedSeats?: number;
     paymentMethod?: 'CASH' | 'TESLAPAY';
   }): Promise<{ message: string; ride: RideRequest }> {
-    return this.request('/rides', {
-      method: 'POST',
-      body: JSON.stringify(params)
-    });
+    try {
+      const res = await this.request<{ message: string; ride: RideRequest }>('/rides', {
+        method: 'POST',
+        body: JSON.stringify(params)
+      });
+      const stored = getStoredRides();
+      stored.unshift(res.ride);
+      saveStoredRides(stored);
+      return res;
+    } catch (err: any) {
+      if (err.message && err.message.includes('must be different')) {
+        throw err;
+      }
+
+      // Offline / Cold-start fallback
+      const token = this.getToken();
+      const users = getStoredUsers();
+      const currentUser: User =
+        users.find((u) => u.token === token || `jwt-${u.id}` === token) ||
+        FALLBACK_USERS.find((u) => u.token === token) || {
+          id: 'user_local',
+          name: 'Commuter',
+          email: 'guest@dhakatesla.com',
+          phone: '01711223344',
+          role: 'PASSENGER',
+          wallet_bdt: 500,
+          wallet_poysha: 50000
+        };
+
+      const fare = calculateMockFare(params.pickupZone, params.destinationZone, params.requestedSeats || 1);
+
+      const newRide: RideRequest = {
+        id: `ride_${Date.now()}`,
+        passenger_id: currentUser.id,
+        passenger_name: currentUser.name,
+        passenger_phone: currentUser.phone,
+        pickup_zone: params.pickupZone,
+        destination_zone: params.destinationZone,
+        requested_seats: params.requestedSeats || 1,
+        status: 'REQUESTED',
+        pool_id: 'pool_banani_01',
+        distance_km: fare.distanceKm,
+        base_fare_poysha: fare.baseFarePoysha,
+        distance_fare_poysha: fare.distanceFarePoysha,
+        discount_poysha: fare.discountPoysha,
+        final_fare_poysha: fare.finalFarePoysha,
+        final_fare_bdt: fare.finalFareBdt,
+        payment_method: params.paymentMethod || 'TESLAPAY',
+        payment_status: params.paymentMethod === 'TESLAPAY' ? 'PAID' : 'PENDING',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        driver: {
+          name: 'Jashim Uddin (Pilot)',
+          phone: '+8801711000004',
+          vehicle_name: 'Dhaka Tesla Bullet #01',
+          license_plate: 'DHK-METRO-HA-1234'
+        }
+      };
+
+      if (params.paymentMethod === 'TESLAPAY' && currentUser.wallet_bdt) {
+        currentUser.wallet_bdt = Math.max(0, currentUser.wallet_bdt - fare.finalFareBdt);
+        currentUser.wallet_poysha = currentUser.wallet_bdt * 100;
+        saveStoredUser(currentUser as any);
+      }
+
+      const stored = getStoredRides();
+      stored.unshift(newRide);
+      saveStoredRides(stored);
+
+      return {
+        message: 'Ride request dispatched to Banani electric corridor!',
+        ride: newRide
+      };
+    }
   }
 
   public static async getRide(id: string): Promise<RideRequest> {
-    const data = await this.request<{ ride: RideRequest }>(`/rides/${id}`);
-    return data.ride;
+    try {
+      const data = await this.request<{ ride: RideRequest }>(`/rides/${id}`);
+      return data.ride;
+    } catch {
+      const stored = getStoredRides();
+      const found = stored.find((r) => r.id === id);
+      if (found) return found;
+      throw new Error('Ride not found');
+    }
   }
 
   public static async getMyHistory(): Promise<RideRequest[]> {
-    const data = await this.request<{ rides: RideRequest[] }>('/rides/my-history');
-    return data.rides;
+    try {
+      const data = await this.request<{ rides: RideRequest[] }>('/rides/my-history');
+      if (data.rides && data.rides.length > 0) {
+        saveStoredRides(data.rides);
+      }
+      return data.rides;
+    } catch {
+      return getStoredRides();
+    }
   }
 
   public static async cancelRide(id: string, reason = 'Cancelled by passenger'): Promise<RideRequest> {
-    const data = await this.request<{ ride: RideRequest }>(`/rides/${id}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ reason })
-    });
-    return data.ride;
+    try {
+      const data = await this.request<{ ride: RideRequest }>(`/rides/${id}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      });
+      return data.ride;
+    } catch {
+      const rides = getStoredRides();
+      const ride = rides.find((r) => r.id === id);
+      if (ride) {
+        ride.status = 'CANCELLED';
+        ride.cancellation_reason = reason;
+        ride.updated_at = new Date().toISOString();
+        saveStoredRides(rides);
+        return ride;
+      }
+      throw new Error('Ride not found');
+    }
   }
 
   // Driver Endpoints
   public static async getDriverActivePool(): Promise<ActivePool | null> {
-    const data = await this.request<{ activePool: ActivePool | null }>('/driver/active-pool');
-    return data.activePool;
+    try {
+      const data = await this.request<{ activePool: ActivePool | null }>('/driver/active-pool');
+      return data.activePool;
+    } catch {
+      const rides = getStoredRides();
+      const activeRides = rides.filter(
+        (r) => r.status === 'MATCHED' || r.status === 'DRIVER_ARRIVED' || r.status === 'STARTED'
+      );
+      if (activeRides.length === 0) return null;
+      const occupiedSeats = activeRides.reduce((sum, r) => sum + r.requested_seats, 0);
+      return {
+        pool: {
+          id: 'pool_local_01',
+          vehicle_id: 'veh_bullet_01',
+          vehicle_name: 'Dhaka Tesla Bullet #01',
+          license_plate: 'DHK-METRO-HA-1234',
+          battery_percent: 84,
+          total_capacity: 3,
+          occupied_seats: occupiedSeats,
+          available_seats: Math.max(0, 3 - occupiedSeats),
+          status: 'ACTIVE',
+          current_zone: activeRides[0].pickup_zone,
+          corridor_direction: 'NORTH_SOUTH',
+          created_at: activeRides[0].created_at
+        },
+        passengers: activeRides.map((r) => ({
+          ride_id: r.id,
+          passenger_id: r.passenger_id,
+          passenger_name: r.passenger_name || 'Passenger',
+          passenger_phone: r.passenger_phone || '01711000000',
+          pickup_zone: r.pickup_zone,
+          destination_zone: r.destination_zone,
+          requested_seats: r.requested_seats,
+          status: r.status,
+          final_fare_bdt: r.final_fare_bdt,
+          payment_method: r.payment_method || 'TESLAPAY',
+          payment_status: r.payment_status || 'PENDING',
+          joined_at: r.created_at
+        }))
+      };
+    }
   }
 
   public static async getPendingRequests(): Promise<RideRequest[]> {
-    const data = await this.request<{ pendingRequests: RideRequest[] }>('/driver/pending-requests');
-    return data.pendingRequests;
+    try {
+      const data = await this.request<{ pendingRequests: RideRequest[] }>('/driver/pending-requests');
+      return data.pendingRequests;
+    } catch {
+      const rides = getStoredRides();
+      return rides.filter((r) => r.status === 'REQUESTED');
+    }
   }
 
   public static async acceptRide(rideId: string): Promise<RideRequest> {
-    const data = await this.request<{ ride: RideRequest }>(`/driver/rides/${rideId}/accept`, {
-      method: 'POST'
-    });
-    return data.ride;
+    try {
+      const data = await this.request<{ ride: RideRequest }>(`/driver/rides/${rideId}/accept`, {
+        method: 'POST'
+      });
+      return data.ride;
+    } catch {
+      const rides = getStoredRides();
+      const ride = rides.find((r) => r.id === rideId);
+      if (ride) {
+        ride.status = 'MATCHED';
+        ride.driver = {
+          name: 'Jashim Uddin (Pilot)',
+          phone: '+8801711000004',
+          vehicle_name: 'Dhaka Tesla Bullet #01',
+          license_plate: 'DHK-METRO-HA-1234'
+        };
+        ride.updated_at = new Date().toISOString();
+        saveStoredRides(rides);
+        return ride;
+      }
+      throw new Error('Ride not found');
+    }
   }
 
   public static async markDriverArrived(rideId: string): Promise<RideRequest> {
-    const data = await this.request<{ ride: RideRequest }>(`/driver/rides/${rideId}/arrived`, {
-      method: 'POST'
-    });
-    return data.ride;
+    try {
+      const data = await this.request<{ ride: RideRequest }>(`/driver/rides/${rideId}/arrived`, {
+        method: 'POST'
+      });
+      return data.ride;
+    } catch {
+      const rides = getStoredRides();
+      const ride = rides.find((r) => r.id === rideId);
+      if (ride) {
+        ride.status = 'DRIVER_ARRIVED';
+        ride.updated_at = new Date().toISOString();
+        saveStoredRides(rides);
+        return ride;
+      }
+      throw new Error('Ride not found');
+    }
   }
 
   public static async startTrip(rideId: string): Promise<RideRequest> {
-    const data = await this.request<{ ride: RideRequest }>(`/driver/rides/${rideId}/start`, {
-      method: 'POST'
-    });
-    return data.ride;
+    try {
+      const data = await this.request<{ ride: RideRequest }>(`/driver/rides/${rideId}/start`, {
+        method: 'POST'
+      });
+      return data.ride;
+    } catch {
+      const rides = getStoredRides();
+      const ride = rides.find((r) => r.id === rideId);
+      if (ride) {
+        ride.status = 'STARTED';
+        ride.updated_at = new Date().toISOString();
+        saveStoredRides(rides);
+        return ride;
+      }
+      throw new Error('Ride not found');
+    }
   }
 
   public static async completeTrip(rideId: string): Promise<RideRequest> {
-    const data = await this.request<{ ride: RideRequest }>(`/driver/rides/${rideId}/complete`, {
-      method: 'POST'
-    });
-    return data.ride;
+    try {
+      const data = await this.request<{ ride: RideRequest }>(`/driver/rides/${rideId}/complete`, {
+        method: 'POST'
+      });
+      return data.ride;
+    } catch {
+      const rides = getStoredRides();
+      const ride = rides.find((r) => r.id === rideId);
+      if (ride) {
+        ride.status = 'COMPLETED';
+        ride.payment_status = 'PAID';
+        ride.updated_at = new Date().toISOString();
+        saveStoredRides(rides);
+        return ride;
+      }
+      throw new Error('Ride not found');
+    }
   }
 
   public static async getDriverHistory(): Promise<any[]> {
-    const data = await this.request<{ history: any[] }>('/driver/history');
-    return data.history;
+    try {
+      const data = await this.request<{ history: any[] }>('/driver/history');
+      return data.history;
+    } catch {
+      const rides = getStoredRides();
+      return rides.filter((r) => r.status === 'COMPLETED');
+    }
   }
 
   public static async setVehicleStatus(status: 'ONLINE' | 'OFFLINE' | 'CHARGING'): Promise<any> {
-    return this.request('/driver/vehicle/status', {
-      method: 'POST',
-      body: JSON.stringify({ status })
-    });
+    try {
+      return await this.request('/driver/vehicle/status', {
+        method: 'POST',
+        body: JSON.stringify({ status })
+      });
+    } catch {
+      return { success: true, status };
+    }
   }
 }

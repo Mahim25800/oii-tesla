@@ -203,7 +203,12 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
       setMessage('Ride request dispatched to Banani electric corridor!');
       await loadPassengerData();
     } catch (err: any) {
-      setMessage(err.message || 'Failed to request ride.');
+      const msg = err.message || '';
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('offline')) {
+        setMessage('Backend is spinning up (~45s Render cold start). Please retry in a few seconds!');
+      } else {
+        setMessage(err.message || 'Failed to request ride.');
+      }
     } finally {
       setLoading(false);
     }
@@ -219,7 +224,12 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
       await loadPassengerData();
       if (onRefreshUser) onRefreshUser();
     } catch (err: any) {
-      setMessage(err.message || 'Cannot cancel ride at this stage.');
+      const msg = err.message || '';
+      if (msg.includes('Failed to fetch')) {
+        setMessage('Network error while cancelling. Please try again.');
+      } else {
+        setMessage(err.message || 'Cannot cancel ride at this stage.');
+      }
     } finally {
       setCancelling(false);
     }
