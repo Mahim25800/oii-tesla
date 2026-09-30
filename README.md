@@ -2,7 +2,9 @@
 
 > **Share a seat. Split the fare. Survive Dhaka traffic.**
 
-🌐 **Live Web App**: [https://oii-tesla.vercel.app](https://oii-tesla.vercel.app/)
+🌐 **Live Web App**: [https://oii-tesla.vercel.app](https://oii-tesla.vercel.app/)  
+🎥 **Walkthrough Video (6 mins)**: [Watch Architecture & Demo Walkthrough (Loom / YouTube)](#)  
+*(Timestamps: `0:00` Problem & Users | `1:00` Architecture, ERD & Invariants | `3:00` Live Demo, Pooling & Edge Cases)*
 
 An electric ride-pooling system built for the Banani rush hour, featuring **Jashim** and his 3-seat electric "Tesla" named **Bullet**, carrying commuters **Nusrat**, **Rafiq**, and **Shirin**.
 
@@ -97,19 +99,79 @@ REQUESTED ──> MATCHED ──> DRIVER_ARRIVED ──> STARTED ──> COMPLET
 
 ```mermaid
 flowchart LR
-    Browser["User Browser"] -->|Port 3000| Nginx["Nginx (Frontend)"]
-    Nginx -->|Static React SPA| Browser
-    Nginx -->|/api and /ws| NodeAPI["Node.js Express API (Port 5000)"]
-    NodeAPI -->|ACID Transactions| SQLite[("SQLite Database")]
+    Browser["User Browser (Vercel)"] -->|HTTPS / Port 3000| Nginx["Nginx / Vercel SPA"]
+    Nginx -->|/api and /ws| NodeAPI["Node.js Express API (Port 5000 / Render)"]
+    NodeAPI -->|ACID Transactions| SQLite[("SQLite Database (WAL Mode)")]
 ```
 
-### Database Tables
-- **`users`**: Passenger and driver profiles, roles, and TeslaPay wallet balances.
-- **`vehicles`**: Vehicle specs, driver assignment, battery level, and fixed capacity (3).
+### Database Schema & Entity-Relationship Diagram (ERD)
+
+```mermaid
+erDiagram
+    users ||--o| vehicles : "drives (1:1)"
+    users ||--o{ ride_requests : "requests (1:N)"
+    vehicles ||--o{ pools : "operates (1:N)"
+    pools ||--o{ pool_memberships : "contains (1:N)"
+    ride_requests ||--o| pool_memberships : "allocated_to (1:1)"
+    users ||--o{ audit_logs : "actor (1:N)"
+
+    users {
+        string id PK
+        string name
+        string phone UK
+        string email UK
+        string role "PASSENGER | DRIVER | ADMIN"
+        integer wallet_poysha "Integer Poysha"
+    }
+
+    vehicles {
+        string id PK
+        string driver_id FK
+        string name "Bullet"
+        string license_plate UK
+        integer total_capacity "Fixed: 3"
+        integer battery_percent
+        string status "ONLINE | BUSY | CHARGING"
+    }
+
+    pools {
+        string id PK
+        string vehicle_id FK
+        string driver_id FK
+        integer total_capacity "3"
+        integer occupied_seats "0..3"
+        string status "FORMING | ACTIVE | COMPLETED"
+        string current_zone "BANANI"
+        string corridor_direction
+    }
+
+    ride_requests {
+        string id PK
+        string passenger_id FK
+        string pickup_zone
+        string destination_zone
+        integer requested_seats
+        string status "REQUESTED..COMPLETED"
+        integer final_fare_poysha
+        string payment_method "TESLAPAY | CASH"
+    }
+
+    pool_memberships {
+        string id PK
+        string pool_id FK
+        string ride_request_id FK
+        integer seats_allocated
+        string status "ACTIVE | COMPLETED"
+    }
+```
+
+### Database Tables Overview
+- **`users`**: Passenger and driver profiles, roles, and TeslaPay wallet balances (in integer Poysha).
+- **`vehicles`**: Vehicle specs, driver assignment, battery level, and fixed capacity (3 seats).
 - **`pools`**: Active pooling sessions, occupied seats, and corridor direction.
-- **`ride_requests`**: Individual ride bookings, pickup/destination, fare breakdown, and status.
+- **`ride_requests`**: Individual ride bookings, pickup/destination, fare breakdown, and lifecycle status.
 - **`pool_memberships`**: Links passenger ride requests to a shared vehicle pool.
-- **`audit_logs`**: Record of every booking, match, lifecycle change, and cancellation.
+- **`audit_logs`**: Immutable record of every booking, match, lifecycle change, and cancellation.
 
 ---
 
