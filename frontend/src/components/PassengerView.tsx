@@ -151,16 +151,21 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
 
   /* --- Active Ride Telemetry & Commuter History --- */
   const loadPassengerData = async () => {
-    if (!ApiService.getToken() && currentUser?.token) {
+    if (!currentUser) return;
+    if (!ApiService.getToken() && currentUser.token) {
       ApiService.setToken(currentUser.token);
     }
     if (!ApiService.getToken()) return;
 
     try {
-      const history = await ApiService.getMyHistory();
-      setMyHistory(history);
+      const history = await ApiService.getMyHistory(currentUser.id);
+      // Strictly isolate rides to the logged-in passenger
+      const userHistory = history.filter(
+        (r) => !r.passenger_id || r.passenger_id === currentUser.id
+      );
+      setMyHistory(userHistory);
 
-      const active = history.find(
+      const active = userHistory.find(
         (r) => r.status !== 'COMPLETED' && r.status !== 'CANCELLED'
       );
       setActiveRide(active || null);
@@ -170,10 +175,19 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
   };
 
   useEffect(() => {
+    // Instantly reset active ride and history so previous profile's state NEVER lingers or flashes
+    setActiveRide(null);
+    setMyHistory([]);
+    setMessage(null);
+
+    if (currentUser?.token) {
+      ApiService.setToken(currentUser.token);
+    }
+
     loadPassengerData();
     const interval = setInterval(loadPassengerData, 3000);
     return () => clearInterval(interval);
-  }, [currentUser.id]);
+  }, [currentUser?.id]);
 
   const handleBookRide = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,7 +208,8 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
         pickupZone,
         destinationZone,
         requestedSeats,
-        paymentMethod
+        paymentMethod,
+        passenger: currentUser
       });
 
       setActiveRide(res.ride);

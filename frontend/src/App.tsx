@@ -21,7 +21,8 @@ const DEFAULT_DEMO_USERS: User[] = [
     role: 'PASSENGER',
     phone: '+8801711000001',
     wallet_poysha: 150000,
-    wallet_bdt: 1500
+    wallet_bdt: 1500,
+    token: 'jwt-demo-token-nusrat'
   },
   {
     id: 'user_rafiq',
@@ -30,7 +31,8 @@ const DEFAULT_DEMO_USERS: User[] = [
     role: 'PASSENGER',
     phone: '+8801711000002',
     wallet_poysha: 80000,
-    wallet_bdt: 800
+    wallet_bdt: 800,
+    token: 'jwt-demo-token-rafiq'
   },
   {
     id: 'user_shirin',
@@ -39,7 +41,18 @@ const DEFAULT_DEMO_USERS: User[] = [
     role: 'PASSENGER',
     phone: '+8801711000003',
     wallet_poysha: 200000,
-    wallet_bdt: 2000
+    wallet_bdt: 2000,
+    token: 'jwt-demo-token-shirin'
+  },
+  {
+    id: 'user_sakib',
+    email: 'mhim2580@gmail.com',
+    name: 'Sakib Hasan',
+    role: 'PASSENGER',
+    phone: '01711223344',
+    wallet_poysha: 50000,
+    wallet_bdt: 500,
+    token: 'jwt-demo-token-sakib'
   },
   {
     id: 'user_jashim',
@@ -48,7 +61,8 @@ const DEFAULT_DEMO_USERS: User[] = [
     role: 'DRIVER',
     phone: '+8801711000004',
     wallet_poysha: 50000,
-    wallet_bdt: 500
+    wallet_bdt: 500,
+    token: 'jwt-demo-token-jashim'
   }
 ];
 
@@ -163,12 +177,16 @@ export default function App() {
       ApiService.setToken(null);
       return;
     }
-    const token = user.token || ApiService.getToken();
-    const userWithToken: User = { ...user, token: token || undefined };
-    setCurrentUser(userWithToken);
-    if (token) {
-      ApiService.setToken(token);
+    // Determine token specifically for this selected user - NEVER reuse the previous user's token!
+    let token = user.token;
+    if (!token) {
+      const match = demoUsers.find((u) => u.id === user.id) ||
+                    DEFAULT_DEMO_USERS.find((u) => u.id === user.id);
+      token = match?.token || `jwt-${user.id}`;
     }
+    const userWithToken: User = { ...user, token };
+    ApiService.setToken(token);
+    setCurrentUser(userWithToken);
     refreshData();
   };
 

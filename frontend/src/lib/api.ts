@@ -432,11 +432,17 @@ export class ApiService {
     destinationZone: string;
     requestedSeats?: number;
     paymentMethod?: 'CASH' | 'TESLAPAY';
+    passenger?: User;
   }): Promise<{ message: string; ride: RideRequest }> {
     try {
       const res = await this.request<{ message: string; ride: RideRequest }>('/rides', {
         method: 'POST',
-        body: JSON.stringify(params)
+        body: JSON.stringify({
+          pickupZone: params.pickupZone,
+          destinationZone: params.destinationZone,
+          requestedSeats: params.requestedSeats,
+          paymentMethod: params.paymentMethod
+        })
       });
       const stored = getStoredRides();
       stored.unshift(res.ride);
@@ -451,8 +457,9 @@ export class ApiService {
       const token = this.getToken();
       const users = getStoredUsers();
       const currentUser: User =
+        params.passenger ||
         users.find((u) => u.token === token || `jwt-${u.id}` === token) ||
-        FALLBACK_USERS.find((u) => u.token === token) || {
+        FALLBACK_USERS.find((u) => u.token === token || `jwt-${u.id}` === token) || {
           id: 'user_local',
           name: 'Commuter',
           email: 'guest@dhakatesla.com',
@@ -521,15 +528,35 @@ export class ApiService {
     }
   }
 
-  public static async getMyHistory(): Promise<RideRequest[]> {
+  public static async getMyHistory(passengerId?: string): Promise<RideRequest[]> {
     try {
       const data = await this.request<{ rides: RideRequest[] }>('/rides/my-history');
       if (data.rides && data.rides.length > 0) {
-        saveStoredRides(data.rides);
+        const existing = getStoredRides();
+        const map = new Map(existing.map((r) => [r.id, r]));
+        for (const r of data.rides) {
+          map.set(r.id, r);
+        }
+        saveStoredRides(Array.from(map.values()));
       }
       return data.rides;
     } catch {
-      return getStoredRides();
+      const allRides = getStoredRides();
+      const currentToken = this.getToken();
+      let targetId = passengerId;
+      if (!targetId && currentToken) {
+        const storedUsers = getStoredUsers();
+        const found = storedUsers.find((u) => u.token === currentToken || `jwt-${u.id}` === currentToken);
+        if (found) targetId = found.id;
+        if (!targetId) {
+          const demoFound = FALLBACK_USERS.find((u) => u.token === currentToken || `jwt-${u.id}` === currentToken);
+          if (demoFound) targetId = demoFound.id;
+        }
+      }
+      if (targetId) {
+        return allRides.filter((r) => r.passenger_id === targetId);
+      }
+      return allRides;
     }
   }
 
