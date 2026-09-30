@@ -546,7 +546,16 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
                         </span>
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-[#D2F832] font-mono font-bold pt-2 border-t border-white/10">
+                    <div className="flex items-center justify-between text-xs text-zinc-300 font-mono font-bold pt-2 border-t border-white/10">
+                      <span>Total (Before Discount)</span>
+                      <span className="text-white font-extrabold">
+                        ৳{estimate.pooledFare.subtotalBdt.toFixed(2)}{' '}
+                        <span className="text-zinc-400 font-normal">
+                          ({(estimate.pooledFare.subtotalPoysha ?? Math.round(estimate.pooledFare.subtotalBdt * 100)).toLocaleString()}p)
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-[#D2F832] font-mono font-bold">
                       <span>25% Pool Discount</span>
                       <span>-৳{estimate.pooledFare.discountBdt.toFixed(2)}</span>
                     </div>
