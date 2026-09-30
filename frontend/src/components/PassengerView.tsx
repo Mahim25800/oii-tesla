@@ -81,14 +81,11 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
       distanceKm = Math.max(1.0, Math.round(R * c * 1.35 * 10) / 10);
     }
 
-    const baseFarePoysha = 3000;
-    const distanceFarePoysha = Math.round(distanceKm * 1500);
-    let subtotalPoysha = baseFarePoysha + distanceFarePoysha;
-    if (seats > 1) {
-      subtotalPoysha = Math.round(subtotalPoysha * (1 + (seats - 1) * 0.7));
-    }
+    const baseFarePoysha = 3000 * seats;
+    const distanceFarePoysha = Math.round(distanceKm * 1500) * seats;
+    const subtotalPoysha = baseFarePoysha + distanceFarePoysha;
     const discountPoysha = Math.round(subtotalPoysha * 0.25);
-    const finalFarePoysha = Math.max(2500, subtotalPoysha - discountPoysha);
+    const finalFarePoysha = Math.max(2500 * seats, subtotalPoysha - discountPoysha);
 
     return {
       distanceKm,
@@ -98,14 +95,19 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
         distanceKm,
         requestedSeats: seats,
         baseFareBdt: baseFarePoysha / 100,
+        baseFarePoysha,
         distanceFareBdt: distanceFarePoysha / 100,
+        distanceFarePoysha,
         subtotalBdt: subtotalPoysha / 100,
+        subtotalPoysha,
         discountBdt: 0,
         discountPercent: 0,
+        discountPoysha: 0,
         finalFareBdt: subtotalPoysha / 100,
+        finalFarePoysha: subtotalPoysha,
         isPooled: false,
         currency: 'BDT' as const,
-        explanation: 'Solo Ride'
+        explanation: `${seats > 1 ? `${seats} Seats: ` : ''}Solo Ride`
       },
       pooledFare: {
         pickupZoneId: pickupId,
@@ -113,16 +115,21 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
         distanceKm,
         requestedSeats: seats,
         baseFareBdt: baseFarePoysha / 100,
+        baseFarePoysha,
         distanceFareBdt: distanceFarePoysha / 100,
+        distanceFarePoysha,
         subtotalBdt: subtotalPoysha / 100,
+        subtotalPoysha,
         discountBdt: discountPoysha / 100,
         discountPercent: 25,
+        discountPoysha,
         finalFareBdt: finalFarePoysha / 100,
+        finalFarePoysha,
         isPooled: true,
         currency: 'BDT' as const,
-        explanation: 'Pooled Ride (25% Discount)'
+        explanation: `${seats > 1 ? `${seats} Seats: ` : ''}Pooled Ride (25% Discount)`
       },
-      potentialSavingsBdt: (subtotalPoysha - finalFarePoysha) / 100
+      potentialSavingsBdt: discountPoysha / 100
     };
   };
 
@@ -512,18 +519,32 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
 
               {estimate ? (
                 <div className="space-y-3.5">
-                  <div className="bg-black/60 rounded-2xl p-4 border border-white/10 space-y-1.5">
+                  <div className="bg-black/60 rounded-2xl p-4 border border-white/10 space-y-2">
                     <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
                       <span>Corridor Distance</span>
                       <span className="text-white font-bold">{estimate.distanceKm.toFixed(1)} km</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
-                      <span>Base Flag-drop</span>
-                      <span className="text-white font-bold">৳{estimate.pooledFare.baseFareBdt.toFixed(2)} (3,000p)</span>
+                      <span>
+                        Base Flag-drop {requestedSeats > 1 ? `(${requestedSeats} seats × ৳30)` : `(৳30/seat)`}
+                      </span>
+                      <span className="text-white font-bold">
+                        ৳{estimate.pooledFare.baseFareBdt.toFixed(2)}{' '}
+                        <span className="text-zinc-500 font-normal">
+                          ({(estimate.pooledFare.baseFarePoysha ?? Math.round(estimate.pooledFare.baseFareBdt * 100)).toLocaleString()}p)
+                        </span>
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
-                      <span>Distance Charge</span>
-                      <span className="text-white font-bold">৳{estimate.pooledFare.distanceFareBdt.toFixed(2)}</span>
+                      <span>
+                        Distance Charge {requestedSeats > 1 ? `(${requestedSeats} seats × ৳${(estimate.distanceKm * 15).toFixed(2)})` : `(৳15/km)`}
+                      </span>
+                      <span className="text-white font-bold">
+                        ৳{estimate.pooledFare.distanceFareBdt.toFixed(2)}{' '}
+                        <span className="text-zinc-500 font-normal">
+                          ({(estimate.pooledFare.distanceFarePoysha ?? Math.round(estimate.pooledFare.distanceFareBdt * 100)).toLocaleString()}p)
+                        </span>
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-[#D2F832] font-mono font-bold pt-2 border-t border-white/10">
                       <span>25% Pool Discount</span>
@@ -534,7 +555,7 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
                   {/* Highlight Final Fare Card */}
                   <div className="bg-[#D2F832] text-black rounded-2xl p-4 sm:p-5 shadow-lg relative overflow-hidden">
                     <div className="flex items-center justify-between text-xs font-bold text-black/80 mb-1">
-                      <span>POOLED PASSENGER FARE</span>
+                      <span>POOLED PASSENGER FARE ({requestedSeats} {requestedSeats === 1 ? 'SEAT' : 'SEATS'})</span>
                       <span className="text-[10px] font-mono bg-black/15 px-2 py-0.5 rounded-full font-bold">
                         Integer Poysha
                       </span>
@@ -544,13 +565,13 @@ export const PassengerView: React.FC<PassengerViewProps> = ({
                         ৳{estimate.pooledFare.finalFareBdt.toFixed(2)}
                       </div>
                       <div className="text-xs font-mono font-bold text-black/70">
-                        ({Math.round(estimate.pooledFare.finalFareBdt * 100).toLocaleString()} Poysha)
+                        ({(estimate.pooledFare.finalFarePoysha ?? Math.round(estimate.pooledFare.finalFareBdt * 100)).toLocaleString()} Poysha)
                       </div>
                     </div>
                     <div className="text-[11px] font-mono font-semibold text-black/80 mt-1.5 flex items-center justify-between pt-2 border-t border-black/10">
                       <span>Solo Fare: ৳{estimate.soloFare.finalFareBdt.toFixed(2)}</span>
                       <span className="font-bold text-emerald-950 bg-black/10 px-2 py-0.5 rounded">
-                        Save ৳{estimate.potentialSavingsBdt.toFixed(2)}
+                        Save ৳{estimate.potentialSavingsBdt.toFixed(2)} (25%)
                       </span>
                     </div>
                   </div>

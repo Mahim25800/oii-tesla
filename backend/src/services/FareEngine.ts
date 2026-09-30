@@ -43,13 +43,9 @@ export class FareEngine {
     const distanceKm = getZoneDistance(input.pickupZoneId, input.destinationZoneId);
 
     /* --- Integer Poysha Computation (Exact Currency Representation) --- */
-    const baseFarePoysha = CONFIG.FARE.BASE_FARE_POYSHA;
-    const distanceFarePoysha = Math.round(distanceKm * CONFIG.FARE.RATE_PER_KM_POYSHA);
-    let subtotalPoysha = baseFarePoysha + distanceFarePoysha;
-
-    if (seats > 1) {
-      subtotalPoysha = Math.round(subtotalPoysha * (1 + (seats - 1) * 0.7));
-    }
+    const baseFarePoysha = CONFIG.FARE.BASE_FARE_POYSHA * seats;
+    const distanceFarePoysha = Math.round(distanceKm * CONFIG.FARE.RATE_PER_KM_POYSHA) * seats;
+    const subtotalPoysha = baseFarePoysha + distanceFarePoysha;
 
     const isPooled = Boolean(input.isPooled);
     let discountPercent = 0;
@@ -62,11 +58,11 @@ export class FareEngine {
 
     // Minimum fare guarantee prevents negative or zero fare edge cases
     const rawFinalFare = subtotalPoysha - discountPoysha;
-    const finalFarePoysha = Math.max(CONFIG.FARE.MINIMUM_FARE_POYSHA, rawFinalFare);
+    const finalFarePoysha = Math.max(CONFIG.FARE.MINIMUM_FARE_POYSHA * seats, rawFinalFare);
 
     const explanation = isPooled
-      ? `Base ৳${(baseFarePoysha / 100).toFixed(2)} + Distance (${distanceKm.toFixed(1)}km × ৳${(CONFIG.FARE.RATE_PER_KM_POYSHA / 100).toFixed(2)}) = ৳${(subtotalPoysha / 100).toFixed(2)} less ${discountPercent}% Pool Discount (-৳${(discountPoysha / 100).toFixed(2)}) = ৳${(finalFarePoysha / 100).toFixed(2)}`
-      : `Base ৳${(baseFarePoysha / 100).toFixed(2)} + Distance (${distanceKm.toFixed(1)}km × ৳${(CONFIG.FARE.RATE_PER_KM_POYSHA / 100).toFixed(2)}) = ৳${(finalFarePoysha / 100).toFixed(2)}`;
+      ? `${seats > 1 ? `${seats} Seats: ` : ''}Base ৳${(baseFarePoysha / 100).toFixed(2)} + Distance (${(distanceKm * seats).toFixed(1)} seat-km × ৳${(CONFIG.FARE.RATE_PER_KM_POYSHA / 100).toFixed(2)}) = ৳${(subtotalPoysha / 100).toFixed(2)} less ${discountPercent}% Pool Discount (-৳${(discountPoysha / 100).toFixed(2)}) = ৳${(finalFarePoysha / 100).toFixed(2)}`
+      : `${seats > 1 ? `${seats} Seats: ` : ''}Base ৳${(baseFarePoysha / 100).toFixed(2)} + Distance (${(distanceKm * seats).toFixed(1)} seat-km × ৳${(CONFIG.FARE.RATE_PER_KM_POYSHA / 100).toFixed(2)}) = ৳${(finalFarePoysha / 100).toFixed(2)}`;
 
     return {
       pickupZoneId: input.pickupZoneId,

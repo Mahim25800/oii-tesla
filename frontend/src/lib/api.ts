@@ -118,24 +118,38 @@ function saveStoredRides(rides: RideRequest[]) {
 function calculateMockFare(pickup: string, destination: string, seats: number = 1) {
   const pZone = DEFAULT_ZONES.find((z) => z.id === pickup);
   const dZone = DEFAULT_ZONES.find((z) => z.id === destination);
-  let distanceKm = 4.0;
+  let distanceKm = 2.4;
   if (pZone && dZone) {
-    const dLat = (dZone.latitude - pZone.latitude) * 111;
-    const dLon = (dZone.longitude - pZone.longitude) * 102;
-    distanceKm = Math.max(1.0, Math.round(Math.sqrt(dLat * dLat + dLon * dLon) * 10) / 10);
+    const R = 6371;
+    const dLat = ((dZone.latitude - pZone.latitude) * Math.PI) / 180;
+    const dLng = ((dZone.longitude - pZone.longitude) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((pZone.latitude * Math.PI) / 180) *
+        Math.cos((dZone.latitude * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    distanceKm = Math.max(1.0, Math.round(R * c * 1.35 * 10) / 10);
   }
 
-  const baseFarePoysha = 4000;
-  const distanceFarePoysha = Math.round(distanceKm * 500);
-  const subtotalPoysha = (baseFarePoysha + distanceFarePoysha) * seats;
+  const baseFarePoysha = 3000 * seats;
+  const distanceFarePoysha = Math.round(distanceKm * 1500) * seats;
+  const subtotalPoysha = baseFarePoysha + distanceFarePoysha;
   const discountPoysha = Math.round(subtotalPoysha * 0.25);
-  const finalFarePoysha = Math.max(2500, subtotalPoysha - discountPoysha);
+  const finalFarePoysha = Math.max(2500 * seats, subtotalPoysha - discountPoysha);
 
   return {
     distanceKm,
     baseFarePoysha,
+    baseFareBdt: baseFarePoysha / 100,
     distanceFarePoysha,
+    distanceFareBdt: distanceFarePoysha / 100,
+    subtotalPoysha,
+    subtotalBdt: subtotalPoysha / 100,
     discountPoysha,
+    discountBdt: discountPoysha / 100,
+    discountPercent: 25,
     finalFarePoysha,
     finalFareBdt: finalFarePoysha / 100
   };
@@ -366,7 +380,6 @@ export class ApiService {
       });
     } catch {
       const fare = calculateMockFare(pickupZone, destinationZone, requestedSeats);
-      const soloSubtotal = (fare.baseFarePoysha + fare.distanceFarePoysha) / 100;
       return {
         distanceKm: fare.distanceKm,
         soloFare: {
@@ -374,32 +387,42 @@ export class ApiService {
           destinationZoneId: destinationZone,
           distanceKm: fare.distanceKm,
           requestedSeats,
-          baseFareBdt: fare.baseFarePoysha / 100,
-          distanceFareBdt: fare.distanceFarePoysha / 100,
-          subtotalBdt: soloSubtotal,
+          baseFareBdt: fare.baseFareBdt,
+          baseFarePoysha: fare.baseFarePoysha,
+          distanceFareBdt: fare.distanceFareBdt,
+          distanceFarePoysha: fare.distanceFarePoysha,
+          subtotalBdt: fare.subtotalBdt,
+          subtotalPoysha: fare.subtotalPoysha,
           discountBdt: 0,
           discountPercent: 0,
-          finalFareBdt: soloSubtotal,
+          discountPoysha: 0,
+          finalFareBdt: fare.subtotalBdt,
+          finalFarePoysha: fare.subtotalPoysha,
           isPooled: false,
           currency: 'BDT',
-          explanation: 'Solo Ride (Standard Fleet)'
+          explanation: `${requestedSeats > 1 ? `${requestedSeats} Seats: ` : ''}Solo Ride (Standard Fleet)`
         },
         pooledFare: {
           pickupZoneId: pickupZone,
           destinationZoneId: destinationZone,
           distanceKm: fare.distanceKm,
           requestedSeats,
-          baseFareBdt: fare.baseFarePoysha / 100,
-          distanceFareBdt: fare.distanceFarePoysha / 100,
-          subtotalBdt: soloSubtotal,
-          discountBdt: fare.discountPoysha / 100,
+          baseFareBdt: fare.baseFareBdt,
+          baseFarePoysha: fare.baseFarePoysha,
+          distanceFareBdt: fare.distanceFareBdt,
+          distanceFarePoysha: fare.distanceFarePoysha,
+          subtotalBdt: fare.subtotalBdt,
+          subtotalPoysha: fare.subtotalPoysha,
+          discountBdt: fare.discountBdt,
           discountPercent: 25,
+          discountPoysha: fare.discountPoysha,
           finalFareBdt: fare.finalFareBdt,
+          finalFarePoysha: fare.finalFarePoysha,
           isPooled: true,
           currency: 'BDT',
-          explanation: 'Pooled Ride (25% Discount corridor incentive)'
+          explanation: `${requestedSeats > 1 ? `${requestedSeats} Seats: ` : ''}Pooled Ride (25% Discount corridor incentive)`
         },
-        potentialSavingsBdt: fare.discountPoysha / 100
+        potentialSavingsBdt: fare.discountBdt
       };
     }
   }

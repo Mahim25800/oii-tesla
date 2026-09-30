@@ -36,11 +36,16 @@ export interface FareBreakdown {
   distanceKm: number;
   requestedSeats: number;
   baseFareBdt: number;
+  baseFarePoysha?: number;
   distanceFareBdt: number;
+  distanceFarePoysha?: number;
   subtotalBdt: number;
+  subtotalPoysha?: number;
   discountBdt: number;
   discountPercent: number;
+  discountPoysha?: number;
   finalFareBdt: number;
+  finalFarePoysha?: number;
   isPooled: boolean;
   currency: 'BDT';
   explanation: string;
