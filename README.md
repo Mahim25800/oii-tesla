@@ -3,8 +3,7 @@
 > **Share a seat. Split the fare. Survive Dhaka traffic.**
 
 🌐 **Live Web App**: [https://oii-tesla.vercel.app](https://oii-tesla.vercel.app/)  
-🎥 **Video Walkthrough (6 mins)**: [https://www.loom.com/share/24965d1c88cb4298bc14862a40231a86](https://www.loom.com/share/24965d1c88cb4298bc14862a40231a86)  
-*(Timestamps: `0:00` Problem, Users & Core Idea | `1:00` Architecture, ERD & Invariants | `3:00` Product Tour, Pooling & Edge Cases)*
+🎥 **Video Walkthrough (6 mins)**: [https://www.loom.com/share/24965d1c88cb4298bc14862a40231a86](https://www.loom.com/share/24965d1c88cb4298bc14862a40231a86) 
 
 An electric ride-pooling system built for the Banani rush hour, featuring **Jashim** and his 3-seat electric "Tesla" named **Bullet**, carrying commuters **Nusrat**, **Rafiq**, and **Shirin**.
 
